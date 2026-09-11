@@ -1,0 +1,258 @@
+'use client'
+
+import { useMemo, useState, useTransition } from 'react'
+import { createClient } from '@/utils/supabase/client'
+import { setEventClosed } from '@/lib/actions/events'
+import { AthleteName } from '@/components/athlete-name'
+import { EVENT_LABEL, dayStamp, formatEventTime, fullName } from '@/lib/format'
+import type { Athlete, Event } from '@/lib/types'
+
+export function AttendanceBoard({
+  event,
+  athletes,
+  initialAbsent,
+  userId,
+}: {
+  event: Event
+  athletes: Athlete[]
+  initialAbsent: { athlete_id: string; injury: boolean }[]
+  userId: string
+}) {
+  const supabase = useMemo(() => createClient(), [])
+  const [absent, setAbsent] = useState<Map<string, boolean>>(
+    () => new Map(initialAbsent.map((a) => [a.athlete_id, a.injury]))
+  )
+  const [failed, setFailed] = useState<string | null>(null)
+  const [closed, setClosed] = useState(Boolean(event.closed_at))
+  const [isPending, startTransition] = useTransition()
+  const [query, setQuery] = useState('')
+
+  const visible = query.trim()
+    ? athletes.filter((a) =>
+        `${a.first_name} ${a.last_name} ${a.nickname ?? ''}`
+          .toLowerCase()
+          .includes(query.trim().toLowerCase())
+      )
+    : athletes
+
+  const present = athletes.length - absent.size
+  const injured = [...absent.values()].filter(Boolean).length
+
+  async function toggle(athleteId: string) {
+    const wasAbsent = absent.has(athleteId)
+    const hadInjury = absent.get(athleteId) ?? false
+
+    // Aggiorno subito: a bordo campo nessuno aspetta la rete.
+    setAbsent((prev) => {
+      const next = new Map(prev)
+      wasAbsent ? next.delete(athleteId) : next.set(athleteId, false)
+      return next
+    })
+    setFailed(null)
+
+    const { error } = wasAbsent
+      ? await supabase
+          .from('absences')
+          .delete()
+          .match({ event_id: event.id, athlete_id: athleteId })
+      : await supabase.from('absences').insert({
+          event_id: event.id,
+          athlete_id: athleteId,
+          marked_by: userId,
+        })
+
+    if (error) {
+      setAbsent((prev) => {
+        const next = new Map(prev)
+        wasAbsent ? next.set(athleteId, hadInjury) : next.delete(athleteId)
+        return next
+      })
+      setFailed('Modifica non salvata. Controlla la connessione e riprova.')
+    }
+  }
+
+  /** L'infortunio e' un attributo dell'assenza, non un terzo stato. */
+  async function toggleInjury(athleteId: string) {
+    const current = absent.get(athleteId) ?? false
+    const next = !current
+
+    setAbsent((prev) => new Map(prev).set(athleteId, next))
+    setFailed(null)
+
+    const { error } = await supabase
+      .from('absences')
+      .update({ injury: next })
+      .match({ event_id: event.id, athlete_id: athleteId })
+
+    if (error) {
+      setAbsent((prev) => new Map(prev).set(athleteId, current))
+      setFailed('Modifica non salvata. Controlla la connessione e riprova.')
+    }
+  }
+
+  function toggleClosed() {
+    startTransition(async () => {
+      const next = !closed
+      setClosed(next)
+      const res = await setEventClosed(event.id, next)
+      if (res?.error) {
+        setClosed(!next)
+        setFailed(res.error)
+      }
+    })
+  }
+
+  return (
+    <section className="panel mt-5">
+      {/* Ripete l'evento: sotto la lista dei nomi non si deve mai
+          dover risalire per capire cosa si sta compilando. */}
+      <div className="board-id">
+        <span className="flex flex-wrap items-center gap-2">
+          <span className={event.type === 'match' ? 'tag info' : 'tag'}>
+            {EVENT_LABEL[event.type]}
+          </span>
+          <span className="mini">Appello in corso</span>
+        </span>
+
+        <p className="board-title">
+          {event.title || EVENT_LABEL[event.type]}
+        </p>
+
+        <p className="board-meta">
+          {dayStamp(event.starts_at)} · {formatEventTime(event.starts_at)}
+          {event.location ? ` · ${event.location}` : ''}
+        </p>
+      </div>
+
+      <div className="panel-head">
+        <span>
+          <span className="mini">Presenti</span>
+          <span className="mt-1 block text-2xl" style={{ color: 'var(--color-text)' }}>
+            {present}
+            <span style={{ color: 'var(--color-faint)' }}> / {athletes.length}</span>
+          </span>
+        </span>
+
+        <span className="flex flex-wrap items-center gap-2">
+          {absent.size > 0 && (
+            <span className="tag fail">
+              {absent.size} {absent.size === 1 ? 'assente' : 'assenti'}
+            </span>
+          )}
+          {injured > 0 && (
+            <span className="tag warn">
+              {injured} {injured === 1 ? 'infortunio' : 'infortuni'}
+            </span>
+          )}
+          <span className={closed ? 'tag pass' : 'tag warn'}>
+            {closed ? 'Appello chiuso' : 'Da chiudere'}
+          </span>
+        </span>
+      </div>
+
+      {athletes.length > 10 && (
+        <div className="border-b border-line p-4">
+          <input
+            className="search"
+            placeholder="Cerca un giocatore"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Cerca un giocatore"
+          />
+        </div>
+      )}
+
+      {failed && (
+        <div className="border-b border-line p-4">
+          <p className="alert">{failed}</p>
+        </div>
+      )}
+
+      <p className="mini border-b border-line px-4 py-2">
+        Tocca un nome per segnarlo assente
+      </p>
+
+      <ul className="rows">
+        {visible.map((a) => {
+          const isAbsent = absent.has(a.id)
+          const isInjured = absent.get(a.id) ?? false
+          return (
+            <li key={a.id}>
+              <button
+                type="button"
+                onClick={() => toggle(a.id)}
+                aria-pressed={isAbsent}
+                aria-label={`${fullName(a)}: ${isAbsent ? 'assente' : 'presente'}`}
+                className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left"
+                style={{
+                  minHeight: '58px',
+                  background: isAbsent ? 'rgba(255,68,51,.1)' : 'transparent',
+                  boxShadow: isAbsent
+                    ? 'inset 3px 0 0 0 var(--color-red)'
+                    : 'none',
+                  opacity: isAbsent ? 0.85 : 1,
+                }}
+              >
+                <span
+                  style={{
+                    textDecoration: isAbsent ? 'line-through' : 'none',
+                    textDecorationColor: 'var(--color-red)',
+                  }}
+                >
+                  <AthleteName athlete={a} />
+                </span>
+
+                <span
+                  className={isAbsent ? 'tag fail' : 'tag pass'}
+                  style={{ flex: 'none' }}
+                >
+                  {isAbsent ? 'Assente' : 'Presente'}
+                </span>
+              </button>
+
+              {isAbsent && (
+                <div
+                  className="flex flex-wrap items-center gap-3 px-4 pb-3"
+                  style={{ background: 'var(--absent-bg)' }}
+                >
+                  <button
+                    type="button"
+                    className={isInjured ? 'pill' : 'pill'}
+                    data-on={isInjured}
+                    onClick={() => toggleInjury(a.id)}
+                    aria-pressed={isInjured}
+                  >
+                    {isInjured ? '✓ Infortunato' : 'Segna infortunio'}
+                  </button>
+                  {isInjured && (
+                    <span className="text-sm" style={{ color: 'var(--muted)' }}>
+                      Resta un’assenza nelle percentuali, ma conteggiata a parte.
+                    </span>
+                  )}
+                </div>
+              )}
+            </li>
+          )
+        })}
+
+        {visible.length === 0 && <li className="empty">Nessun giocatore trovato.</li>}
+      </ul>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line p-4">
+        <p className="text-sm" style={{ color: 'var(--color-muted)', maxWidth: '22rem' }}>
+          {closed
+            ? 'L’appello è chiuso e conta nelle percentuali.'
+            : 'Chiudi l’appello quando hai finito: solo così entra nelle percentuali.'}
+        </p>
+        <button
+          type="button"
+          onClick={toggleClosed}
+          disabled={isPending}
+          className={closed ? 'btn' : 'btn btn-primary'}
+        >
+          {closed ? 'Riapri appello' : 'Chiudi appello'}
+        </button>
+      </div>
+    </section>
+  )
+}

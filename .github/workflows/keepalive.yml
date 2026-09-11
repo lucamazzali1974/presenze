@@ -1,0 +1,47 @@
+name: Supabase keepalive
+
+# Supabase mette in pausa i progetti del piano free dopo 7 giorni senza
+# attivita' sul database. Questo job fa una query reale ogni 3 giorni.
+#
+# Setup:
+#   1. salva questo file in .github/workflows/keepalive.yml
+#   2. Settings > Secrets and variables > Actions, aggiungi:
+#        SUPABASE_URL       es. https://xxxxxxxx.supabase.co
+#        SUPABASE_ANON_KEY  la anon/public key del progetto
+#
+# ATTENZIONE: GitHub disabilita gli workflow schedulati nei repository
+# senza attivita' da 60 giorni e manda una mail di avviso. Se il repo
+# resta fermo a lungo, riattivalo dalla tab Actions.
+
+on:
+  schedule:
+    - cron: '0 9 */3 * *'   # ogni 3 giorni alle 09:00 UTC
+  workflow_dispatch:         # esecuzione manuale dalla tab Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query sul database
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -u
+          code=$(curl -sS -o /tmp/body.txt -w '%{http_code}' \
+            --max-time 30 --retry 3 --retry-delay 10 \
+            "${SUPABASE_URL}/rest/v1/athletes?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+
+          echo "HTTP ${code}"
+          head -c 300 /tmp/body.txt || true
+          echo
+
+          # 200 e 401/403 vanno bene: la query ha comunque raggiunto
+          # Postgres (la RLS la filtra, ma il DB l'ha eseguita).
+          # 5xx o timeout = progetto in pausa o irraggiungibile.
+          case "$code" in
+            200|401|403) echo "Progetto attivo." ;;
+            *)           echo "::error::Progetto non raggiungibile (HTTP ${code})"; exit 1 ;;
+          esac

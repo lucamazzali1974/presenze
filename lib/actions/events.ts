@@ -1,0 +1,153 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { createClient } from '@/utils/supabase/server'
+import { requireAdmin, requireProfile } from '@/lib/auth'
+
+/** Converte data + ora locali in un timestamp con fuso Europe/Rome. */
+function localToISO(date: string, time: string) {
+  // Lo fa Postgres in modo affidabile; qui basta la stringa ISO senza zona,
+  // che Supabase interpreta con il fuso della colonna timestamptz.
+  return `${date}T${time}:00`
+}
+
+export async function createEvent(formData: FormData) {
+  await requireAdmin()
+  const supabase = await createClient()
+
+  const type = String(formData.get('type') ?? 'training')
+  const date = String(formData.get('date') ?? '')
+  const time = String(formData.get('time') ?? '')
+  const title = String(formData.get('title') ?? '').trim()
+  const location = String(formData.get('location') ?? '').trim()
+
+  if (!date || !time) return { error: 'Data e ora sono obbligatorie.' }
+
+  const { error } = await supabase.from('events').insert({
+    type,
+    starts_at: localToISO(date, time),
+    title: title || null,
+    location: location || null,
+  })
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/admin/events')
+  revalidatePath('/')
+  return { ok: true }
+}
+
+export async function createRecurringEvents(formData: FormData) {
+  await requireAdmin()
+  const supabase = await createClient()
+
+  const type = String(formData.get('type') ?? 'training')
+  const time = String(formData.get('time') ?? '')
+  const from = String(formData.get('from') ?? '')
+  const to = String(formData.get('to') ?? '')
+  const title = String(formData.get('title') ?? '').trim()
+  const location = String(formData.get('location') ?? '').trim()
+  const weekdays = formData
+    .getAll('weekdays')
+    .map((d) => Number(d))
+    .filter((d) => d >= 1 && d <= 7)
+
+  if (!time || !from || !to) return { error: 'Compila ora, data inizio e fine.' }
+  if (weekdays.length === 0) return { error: 'Scegli almeno un giorno.' }
+  if (to < from) return { error: 'La data di fine precede quella di inizio.' }
+
+  // La generazione delle date la fa Postgres: gestisce il cambio dell'ora
+  // legale senza spostare l'orario degli allenamenti.
+  const { error } = await supabase.rpc('create_recurring_events', {
+    p_type: type,
+    p_weekdays: weekdays,
+    p_time: time,
+    p_from: from,
+    p_to: to,
+    p_title: title || null,
+    p_location: location || null,
+  })
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/admin/events')
+  revalidatePath('/')
+  return { ok: true }
+}
+
+export async function updateEvent(id: string, formData: FormData) {
+  await requireAdmin()
+  const supabase = await createClient()
+
+  const type = String(formData.get('type') ?? 'training')
+  const date = String(formData.get('date') ?? '')
+  const time = String(formData.get('time') ?? '')
+  const title = String(formData.get('title') ?? '').trim()
+  const location = String(formData.get('location') ?? '').trim()
+
+  if (!date || !time) return { error: 'Data e ora sono obbligatorie.' }
+
+  const { error } = await supabase
+    .from('events')
+    .update({
+      type,
+      starts_at: localToISO(date, time),
+      title: title || null,
+      location: location || null,
+    })
+    .eq('id', id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/admin/events')
+  revalidatePath('/')
+  return { ok: true }
+}
+
+export async function deleteEvent(id: string) {
+  await requireAdmin()
+  const supabase = await createClient()
+
+  const { error } = await supabase.from('events').delete().eq('id', id)
+  if (error) return { error: error.message }
+
+  revalidatePath('/admin/events')
+  revalidatePath('/')
+  return { ok: true }
+}
+
+export async function deleteSeries(seriesId: string) {
+  await requireAdmin()
+  const supabase = await createClient()
+
+  // Cancella solo le occorrenze future: quelle passate hanno gia' un appello.
+  const { error } = await supabase
+    .from('events')
+    .delete()
+    .eq('series_id', seriesId)
+    .gte('starts_at', new Date().toISOString())
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/admin/events')
+  revalidatePath('/')
+  return { ok: true }
+}
+
+/** Chiude l'appello: da qui in poi l'evento entra nelle statistiche. */
+export async function setEventClosed(id: string, closed: boolean) {
+  await requireProfile()
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('events')
+    .update({ closed_at: closed ? new Date().toISOString() : null })
+    .eq('id', id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/')
+  revalidatePath(`/events/${id}`)
+  revalidatePath('/stats')
+  return { ok: true }
+}
