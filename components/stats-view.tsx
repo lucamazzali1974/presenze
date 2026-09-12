@@ -4,27 +4,41 @@ import { useRef, useState, useTransition } from 'react'
 import { createArchive } from '@/lib/actions/archives'
 import { AthleteName } from '@/components/athlete-name'
 import { download, slugDate, statsCsv } from '@/lib/csv'
-import type { AttendanceStat } from '@/lib/types'
+import { formatDate } from '@/lib/format'
+import type { Athlete, AttendanceStat } from '@/lib/types'
 
 export type StatsRow = {
   id: string
   sort: string
-  athlete: AttendanceStat
+  athlete: Pick<Athlete, 'first_name' | 'last_name' | 'nickname' | 'joined_on'>
   training: AttendanceStat | null
   match: AttendanceStat | null
 }
 
+export type ClosedSummary = {
+  total: number
+  training: number
+  match: number
+  firstAt: string | null
+}
+
 export function StatsView({
   rows,
+  closed,
+  loadError = null,
   isAdmin,
 }: {
   rows: StatsRow[]
+  closed: ClosedSummary
+  loadError?: string | null
   isAdmin: boolean
 }) {
   const [showArchive, setShowArchive] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const formRef = useRef<HTMLFormElement>(null)
+
+  const counted = rows.filter((r) => r.training || r.match).length
 
   function exportCsv() {
     const csv = statsCsv(
@@ -54,8 +68,9 @@ export function StatsView({
         <p className="eyebrow">// Statistiche</p>
         <h1 className="h1">Percentuali</h1>
         <p className="sub">
-          Contano solo gli appelli chiusi, non archiviati, e solo da quando il
-          giocatore è in rosa.
+          {closed.total === 0
+            ? 'Contano solo gli appelli chiusi, non archiviati, e solo da quando il giocatore è in rosa.'
+            : `${closed.total} ${closed.total === 1 ? 'appello chiuso' : 'appelli chiusi'} in archivio corrente · ${closed.training} allenamenti · ${closed.match} partite`}
         </p>
 
         <div className="row-actions mt-5">
@@ -111,12 +126,36 @@ export function StatsView({
         </form>
       )}
 
+      {loadError && (
+        <p className="alert mb-4">
+          Non sono riuscito a leggere le percentuali: {loadError}
+        </p>
+      )}
+
       {error && <p className="alert mb-4">{error}</p>}
+
+      {!loadError && closed.total > 0 && counted === 0 && rows.length > 0 && (
+        <p className="alert mb-4">
+          Ci sono {closed.total} appelli chiusi, ma nessun giocatore li sta
+          conteggiando: tutti risultano in rosa da una data successiva
+          {closed.firstAt
+            ? ` al ${formatDate(closed.firstAt.slice(0, 10))}`
+            : ''}
+          . Correggi il campo «In rosa dal» dalla pagina Atleti.
+        </p>
+      )}
 
       <ul className="panel rows">
         {rows.map((r) => (
           <li key={r.id} className="row">
             <AthleteName athlete={r.athlete} block />
+
+            {closed.total > 0 && !r.training && !r.match && r.athlete.joined_on && (
+              <p className="mini mt-2">
+                In rosa dal {formatDate(r.athlete.joined_on.slice(0, 10))} ·
+                nessun appello chiuso da quella data
+              </p>
+            )}
 
             <div className="grid-2 mt-3">
               <Stat label="Allenamenti" stat={r.training} />
@@ -127,7 +166,9 @@ export function StatsView({
 
         {rows.length === 0 && (
           <li className="empty">
-            Ancora nessun appello chiuso. Le percentuali compaiono da lì.
+            {closed.total === 0
+              ? 'Ancora nessun appello chiuso. Le percentuali compaiono da lì.'
+              : 'La rosa è vuota: aggiungi i giocatori dalla pagina Atleti.'}
           </li>
         )}
       </ul>

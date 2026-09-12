@@ -288,7 +288,11 @@ export function EventManager({
                   <EditForm
                     event={e}
                     pending={isPending}
-                    onCancel={() => setEditing(null)}
+                    error={editing === e.id ? error : null}
+                    onCancel={() => {
+                      setError(null)
+                      setEditing(null)
+                    }}
                     onSubmit={(formData) => {
                       startTransition(async () => {
                         const res = await updateEvent(e.id, formData)
@@ -343,7 +347,10 @@ export function EventManager({
                       <button
                         type="button"
                         className="btn btn-sm"
-                        onClick={() => setEditing(e.id)}
+                        onClick={() => {
+                          setError(null)
+                          setEditing(e.id)
+                        }}
                       >
                         Modifica
                       </button>
@@ -408,11 +415,13 @@ export function EventManager({
 function EditForm({
   event,
   pending,
+  error,
   onSubmit,
   onCancel,
 }: {
   event: Event
   pending: boolean
+  error?: string | null
   onSubmit: (formData: FormData) => void
   onCancel: () => void
 }) {
@@ -445,6 +454,8 @@ function EditForm({
           <input name="title" defaultValue={event.title ?? ''} />
         </label>
       </div>
+
+      {error && <p className="alert mt-3">{error}</p>}
 
       <div className="row-actions">
         <button type="submit" className="btn btn-sm btn-primary" disabled={pending}>

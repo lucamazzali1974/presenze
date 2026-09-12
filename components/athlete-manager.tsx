@@ -8,7 +8,7 @@ import {
   updateAthlete,
 } from '@/lib/actions/athletes'
 import { AthleteName } from '@/components/athlete-name'
-import { fullName } from '@/lib/format'
+import { formatDate, fullName, todayInput } from '@/lib/format'
 import type { Athlete } from '@/lib/types'
 
 export function AthleteManager({
@@ -81,7 +81,17 @@ export function AthleteManager({
               <span>Soprannome</span>
               <input name="nickname" placeholder="facoltativo" />
             </label>
+            <label className="field">
+              <span>In rosa dal</span>
+              <input name="joined_on" type="date" defaultValue={todayInput()} required />
+            </label>
           </div>
+
+          <p className="mt-4 text-sm" style={{ color: 'var(--faint)' }}>
+            Gli appelli chiusi prima di questa data non entrano nelle sue
+            percentuali. Se il giocatore c&rsquo;era gi&agrave;, sposta la data
+            indietro.
+          </p>
 
           <button type="submit" className="btn btn-primary mt-5" disabled={isPending}>
             Salva giocatore
@@ -130,7 +140,20 @@ export function AthleteManager({
                     <span>Soprannome</span>
                     <input name="nickname" defaultValue={a.nickname ?? ''} />
                   </label>
+                  <label className="field">
+                    <span>In rosa dal</span>
+                    <input
+                      name="joined_on"
+                      type="date"
+                      defaultValue={a.joined_on?.slice(0, 10) ?? ''}
+                      required
+                    />
+                  </label>
                 </div>
+
+                <p className="mt-3 text-sm" style={{ color: 'var(--faint)' }}>
+                  Contano solo gli appelli chiusi da questa data in poi.
+                </p>
 
                 <div className="row-actions">
                   <button type="submit" className="btn btn-sm btn-primary" disabled={isPending}>
@@ -154,6 +177,12 @@ export function AthleteManager({
                   <AthleteName athlete={a} />
                   {!a.active && <span className="tag">Fuori rosa</span>}
                 </div>
+
+                {a.joined_on && (
+                  <p className="mini mt-2">
+                    In rosa dal {formatDate(a.joined_on.slice(0, 10))}
+                  </p>
+                )}
 
                 {isAdmin && (
                   <div className="row-actions">

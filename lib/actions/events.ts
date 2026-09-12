@@ -3,13 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
 import { requireAdmin, requireProfile } from '@/lib/auth'
-
-/** Converte data + ora locali in un timestamp con fuso Europe/Rome. */
-function localToISO(date: string, time: string) {
-  // Lo fa Postgres in modo affidabile; qui basta la stringa ISO senza zona,
-  // che Supabase interpreta con il fuso della colonna timestamptz.
-  return `${date}T${time}:00`
-}
+import { localToISO } from '@/lib/format'
 
 export async function createEvent(formData: FormData) {
   await requireAdmin()
@@ -23,14 +17,23 @@ export async function createEvent(formData: FormData) {
 
   if (!date || !time) return { error: 'Data e ora sono obbligatorie.' }
 
-  const { error } = await supabase.from('events').insert({
-    type,
-    starts_at: localToISO(date, time),
-    title: title || null,
-    location: location || null,
-  })
+  const { data, error } = await supabase
+    .from('events')
+    .insert({
+      type,
+      starts_at: localToISO(date, time),
+      title: title || null,
+      location: location || null,
+    })
+    .select('id')
 
   if (error) return { error: error.message }
+
+  // Senza .select() un insert bloccato dalla RLS tornerebbe senza errore
+  // e senza aver scritto niente: silenzio indistinguibile dal successo.
+  if (!data || data.length === 0) {
+    return { error: 'Data non creata: permessi insufficienti.' }
+  }
 
   revalidatePath('/admin/events')
   revalidatePath('/')
@@ -87,7 +90,7 @@ export async function updateEvent(id: string, formData: FormData) {
 
   if (!date || !time) return { error: 'Data e ora sono obbligatorie.' }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('events')
     .update({
       type,
@@ -96,11 +99,21 @@ export async function updateEvent(id: string, formData: FormData) {
       location: location || null,
     })
     .eq('id', id)
+    .select('id')
 
   if (error) return { error: error.message }
 
+  if (!data || data.length === 0) {
+    return {
+      error:
+        'Nessuna modifica salvata: la data non esiste piu\u2019 oppure non hai i permessi.',
+    }
+  }
+
   revalidatePath('/admin/events')
   revalidatePath('/')
+  revalidatePath(`/events/${id}`)
+  revalidatePath('/stats')
   return { ok: true }
 }
 
@@ -108,11 +121,20 @@ export async function deleteEvent(id: string) {
   await requireAdmin()
   const supabase = await createClient()
 
-  const { error } = await supabase.from('events').delete().eq('id', id)
+  const { data, error } = await supabase
+    .from('events')
+    .delete()
+    .eq('id', id)
+    .select('id')
+
   if (error) return { error: error.message }
+  if (!data || data.length === 0) {
+    return { error: 'Data non eliminata: permessi insufficienti.' }
+  }
 
   revalidatePath('/admin/events')
   revalidatePath('/')
+  revalidatePath('/stats')
   return { ok: true }
 }
 
@@ -139,14 +161,19 @@ export async function setEventClosed(id: string, closed: boolean) {
   await requireProfile()
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('events')
     .update({ closed_at: closed ? new Date().toISOString() : null })
     .eq('id', id)
+    .select('id')
 
   if (error) return { error: error.message }
+  if (!data || data.length === 0) {
+    return { error: 'Appello non aggiornato: permessi insufficienti.' }
+  }
 
   revalidatePath('/')
+  revalidatePath('/admin/events')
   revalidatePath(`/events/${id}`)
   revalidatePath('/stats')
   return { ok: true }
