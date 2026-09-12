@@ -101,6 +101,60 @@ L'infortunio e' un attributo dell'assenza, non un terzo stato: prima segni
 assente, poi flagghi l'infortunio. Resta un'assenza nelle percentuali, ma
 viene conteggiato a parte (colonna `injuries`).
 
+## Web app installabile
+
+Il progetto e' una PWA: manifest, icone, service worker e un invito
+all'installazione che compare dopo qualche secondo (`components/install-prompt.tsx`).
+
+Su Chrome e Android il banner usa l'evento `beforeinstallprompt` e installa
+con un tocco. Su iOS quell'evento non esiste: Safari permette solo istruzioni,
+quindi il banner dice di usare Condividi > Aggiungi a Home.
+
+Chi chiude il banner non lo rivede per due settimane; chi ha gia' installato
+non lo vede affatto.
+
+Il service worker (`public/sw.js`) **non mette in cache le pagine** di
+proposito: l'appello deve sempre riflettere il database. In cache finiscono
+solo gli asset di `/_next/static/`, che hanno l'hash nel nome, piu' la pagina
+`offline.html`. Se cambi `public/sw.js`, alza `VERSION` dentro al file,
+altrimenti i browser tengono il vecchio.
+
+Le icone sono generate (`public/icon-*.png`). Per sostituirle servono almeno
+192x192 e 512x512, piu' le due maskable con il contenuto nell'80% centrale.
+
+Attenzione al matcher in `middleware.ts`: `sw.js`, `manifest.json` e
+`offline.html` sono esclusi apposta. Se il middleware li rimanda al login,
+l'installazione non parte.
+
+## Offline
+
+A bordo campo il segnale manca spesso, quindi l'appello continua a funzionare
+senza rete.
+
+**Lettura**: il service worker tiene l'ultima copia di ogni pagina visitata
+(network-first, quindi con il segnale si vedono sempre i dati veri). Aprendo
+l'app offline si rivede l'ultimo appello caricato. La cache delle pagine viene
+svuotata quando si passa da `/login`, cosi' su un telefono condiviso non resta
+l'appello di chi c'era prima.
+
+**Scrittura**: ogni modifica che non raggiunge il server finisce in una coda in
+`localStorage` (`lib/offline-queue.ts`) e riparte da sola al ritorno del
+segnale, con un tentativo anche ogni 30 secondi perche' l'evento `online`
+scatta quando esiste una rete, non quando funziona.
+
+La coda salva **l'intenzione finale** per ogni coppia evento+atleta, non la
+cronologia dei tocchi: assente, presente, assente lascia una sola voce.
+La sincronizzazione e' quindi idempotente e l'ultimo stato vince, che e' cio'
+che l'allenatore si aspetta. Le scritture usano `upsert` per lo stesso motivo.
+
+Una barra in basso dice sempre a che punto si e': rossa quando manca la rete,
+ambra quando ci sono modifiche ancora da mandare. Quando c'e' quella, l'invito
+a installare l'app non compare: occupano lo stesso posto e salvare viene prima.
+
+Limite noto: due dispositivi che modificano lo stesso atleta offline si
+sovrascrivono a vicenda, vince chi sincronizza per ultimo. Con un solo
+allenatore che compila non capita.
+
 ## Temi
 
 Scuro di default, chiaro con l'interruttore in alto a destra. La scelta sta in

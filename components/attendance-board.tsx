@@ -1,10 +1,11 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { setEventClosed } from '@/lib/actions/events'
 import { AthleteName } from '@/components/athlete-name'
 import { EVENT_LABEL, dayStamp, formatEventTime, fullName } from '@/lib/format'
+import { enqueue, flush, pendingFor } from '@/lib/offline-queue'
 import type { Athlete, Event } from '@/lib/types'
 
 export function AttendanceBoard({
@@ -22,6 +23,23 @@ export function AttendanceBoard({
   const [absent, setAbsent] = useState<Map<string, boolean>>(
     () => new Map(initialAbsent.map((a) => [a.athlete_id, a.injury]))
   )
+
+  // Cio' che il server non ha ancora ricevuto vince su cio' che ha mandato:
+  // altrimenti al ricarico le modifiche offline sembrerebbero sparite.
+  useEffect(() => {
+    const queued = pendingFor(event.id)
+    if (queued.length === 0) return
+
+    setAbsent((prev) => {
+      const next = new Map(prev)
+      for (const q of queued) {
+        q.absent ? next.set(q.athlete_id, q.injury) : next.delete(q.athlete_id)
+      }
+      return next
+    })
+
+    if (navigator.onLine) flush(supabase)
+  }, [event.id, supabase])
   const [failed, setFailed] = useState<string | null>(null)
   const [closed, setClosed] = useState(Boolean(event.closed_at))
   const [isPending, startTransition] = useTransition()
@@ -38,9 +56,51 @@ export function AttendanceBoard({
   const present = athletes.length - absent.size
   const injured = [...absent.values()].filter(Boolean).length
 
+  /**
+   * Scrive lo stato voluto per un atleta. Se la rete non risponde la
+   * modifica finisce in coda invece di essere annullata: a bordo campo
+   * un rollback silenzioso e' peggio di un'attesa dichiarata.
+   */
+  async function persist(athleteId: string, isAbsent: boolean, injury: boolean) {
+    if (!navigator.onLine) {
+      enqueue({
+        event_id: event.id,
+        athlete_id: athleteId,
+        absent: isAbsent,
+        injury,
+        marked_by: userId,
+      })
+      return
+    }
+
+    const { error } = isAbsent
+      ? await supabase.from('absences').upsert(
+          {
+            event_id: event.id,
+            athlete_id: athleteId,
+            injury,
+            marked_by: userId,
+          },
+          { onConflict: 'event_id,athlete_id' }
+        )
+      : await supabase
+          .from('absences')
+          .delete()
+          .match({ event_id: event.id, athlete_id: athleteId })
+
+    if (error) {
+      enqueue({
+        event_id: event.id,
+        athlete_id: athleteId,
+        absent: isAbsent,
+        injury,
+        marked_by: userId,
+      })
+    }
+  }
+
   async function toggle(athleteId: string) {
     const wasAbsent = absent.has(athleteId)
-    const hadInjury = absent.get(athleteId) ?? false
 
     // Aggiorno subito: a bordo campo nessuno aspetta la rete.
     setAbsent((prev) => {
@@ -50,44 +110,17 @@ export function AttendanceBoard({
     })
     setFailed(null)
 
-    const { error } = wasAbsent
-      ? await supabase
-          .from('absences')
-          .delete()
-          .match({ event_id: event.id, athlete_id: athleteId })
-      : await supabase.from('absences').insert({
-          event_id: event.id,
-          athlete_id: athleteId,
-          marked_by: userId,
-        })
-
-    if (error) {
-      setAbsent((prev) => {
-        const next = new Map(prev)
-        wasAbsent ? next.set(athleteId, hadInjury) : next.delete(athleteId)
-        return next
-      })
-      setFailed('Modifica non salvata. Controlla la connessione e riprova.')
-    }
+    await persist(athleteId, !wasAbsent, false)
   }
 
   /** L'infortunio e' un attributo dell'assenza, non un terzo stato. */
   async function toggleInjury(athleteId: string) {
-    const current = absent.get(athleteId) ?? false
-    const next = !current
+    const next = !(absent.get(athleteId) ?? false)
 
     setAbsent((prev) => new Map(prev).set(athleteId, next))
     setFailed(null)
 
-    const { error } = await supabase
-      .from('absences')
-      .update({ injury: next })
-      .match({ event_id: event.id, athlete_id: athleteId })
-
-    if (error) {
-      setAbsent((prev) => new Map(prev).set(athleteId, current))
-      setFailed('Modifica non salvata. Controlla la connessione e riprova.')
-    }
+    await persist(athleteId, true, next)
   }
 
   function toggleClosed() {

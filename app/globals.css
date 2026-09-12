@@ -550,6 +550,101 @@ a:hover {
   border-radius: 999px;
 }
 
+/* ── stato della rete ────────────────────── */
+
+.netbar {
+  position: fixed;
+  z-index: 60;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  max-width: 520px;
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.35;
+  background: var(--red-deep);
+  color: #fff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.netbar-sync {
+  background: var(--amber);
+  color: #000;
+}
+
+.netbar .btn {
+  border-color: currentColor;
+  color: inherit;
+  flex: none;
+}
+
+.netbar-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  flex: none;
+}
+
+/* ── invito all'installazione ────────────── */
+
+.install {
+  position: fixed;
+  z-index: 60;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  max-width: 520px;
+  margin-inline: auto;
+  padding: 14px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.install-body {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.install-icon {
+  border-radius: 10px;
+  flex: none;
+}
+
+.install-title {
+  color: var(--text);
+  font-weight: 500;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.install-text {
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.install-text strong {
+  color: var(--par);
+  font-weight: 500;
+}
+
+.install-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  justify-content: flex-end;
+}
+
 .empty {
   padding: 44px 18px;
   text-align: center;

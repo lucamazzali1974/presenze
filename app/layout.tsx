@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Figtree } from 'next/font/google'
+import { InstallPrompt } from '@/components/install-prompt'
+import { OfflineBanner } from '@/components/offline-banner'
 import './globals.css'
 
 // TT Fors (il font di seocheck.therope.it) e' su licenza e non e'
@@ -15,7 +17,21 @@ export const metadata: Metadata = {
   title: 'Presenze',
   description: 'Appello allenamenti e partite',
   manifest: '/manifest.json',
-  appleWebApp: { capable: true, statusBarStyle: 'black', title: 'Presenze' },
+  applicationName: 'Presenze',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Presenze',
+  },
+  icons: {
+    icon: [
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: '/apple-touch-icon.png',
+    shortcut: '/favicon.ico',
+  },
+  formatDetection: { telephone: false },
 }
 
 export const viewport: Viewport = {
@@ -52,7 +68,11 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body>{children}</body>
+      <body>
+        <OfflineBanner />
+        {children}
+        <InstallPrompt />
+      </body>
     </html>
   )
 }
