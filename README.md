@@ -69,7 +69,7 @@ creano dall'interno.
 | `/admin/teams` | admin | squadre e composizione delle rose |
 | `/archivio` | tutti | periodi archiviati; ripristino ed eliminazione per gli admin |
 | `/archivio/[id]` | tutti | percentuali fotografate e calendario del periodo, con CSV |
-| `/admin/users` | admin | accessi: creazione, approvazione, blocco, modifica, eliminazione |
+| `/admin/users` | admin | accessi: creazione, approvazione, blocco, ruolo, collegamento alla scheda atleta |
 
 ## Deploy
 
@@ -110,6 +110,38 @@ restano, e i suoi eventi tornano `team_id` nullo, cioe' validi per tutti.
 Gli **archivi** restano trasversali: si archivia un periodo, non una squadra,
 e la fotografia resta nella forma aggregata di prima. Per questo il pulsante
 "Archivia un periodo" compare solo con il filtro su "Tutte le squadre".
+
+## Accesso degli atleti
+
+Oltre ad `admin` e `user` (l'allenatore) c'e' il ruolo **`athlete`**. Un
+account atleta si collega a una scheda in anagrafica tramite
+`athletes.profile_id` (unique: un account, un giocatore), e il
+collegamento lo fa l'admin da `/admin/users`. Finche' non lo fai
+l'account entra ma non ha niente da segnare, e l'app glielo dice.
+
+Cosa cambia per lui: sul tabellone vede **solo la propria riga** (i totali
+di squadra in testata restano, cosi' sa quanti sono i presenti), in
+Percentuali vede **solo se stesso**, e l'Archivio sparisce dal menu.
+
+Il limite non e' nel frontend, e' nella RLS — cioe' vale anche per chi
+interroga l'API con la chiave pubblica:
+
+- `athlete_can_mark(event_id, athlete_id)` consente insert, update e
+  delete su `absences` solo se la riga e' la sua, l'evento e' aperto
+  (`closed_at is null`), non archiviato, e lo riguarda davvero (la sua
+  squadra)
+- `attendance_stats` filtra con `is_staff() or a.id = my_athlete_id()`:
+  la riduzione avviene nella vista, non nella pagina
+- `archives` passa in lettura al solo staff, perche' `snapshot` contiene
+  le percentuali di tutti
+- chiudere l'appello passa da `set_event_closed()`, security definer con
+  controllo `is_staff()`. Serviva comunque: la policy su `events` e'
+  riservata agli admin, quindi prima un allenatore non-admin non riusciva
+  a chiudere l'appello, e allargare quella policy gli avrebbe dato anche
+  data, luogo e squadra di ogni evento
+
+`is_active()` resta "qualunque utente attivo" e regola le letture;
+`is_staff()` e' il nuovo nome di chi fa l'appello di tutti.
 
 ## Archivi
 
@@ -217,6 +249,7 @@ supabase/migration-002-archivi.sql     infortuni e archivi
 supabase/migration-003-joined-on.sql   allinea joined_on della rosa esistente
 supabase/migration-004-orari.sql       audit degli orari salvati col fuso sbagliato
 supabase/migration-005-squadre.sql     squadre e appartenenza multipla
+supabase/migration-006-accesso-atleti.sql  ruolo athlete, RLS per atleta
 ```
 
 ## Requisiti

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Nav } from '@/components/nav'
 import { EventSwitch } from '@/components/event-switch'
-import { requireProfile } from '@/lib/auth'
+import { isStaff, myAthlete, requireProfile } from '@/lib/auth'
 import { createClient } from '@/utils/supabase/server'
 import type { Athlete, Event, EventType, Team } from '@/lib/types'
 
@@ -15,6 +15,10 @@ export default async function Home({
   const profile = await requireProfile()
   const supabase = await createClient()
   const params = await searchParams
+
+  // L'atleta compila solo se stesso; lo staff compila tutti.
+  const me = await myAthlete(profile)
+  const staff = isStaff(profile)
 
   const [{ data: athletesData }, { data: teamsData }, { data: membersData }] =
     await Promise.all([
@@ -98,9 +102,13 @@ export default async function Home({
           <p className="eyebrow">// Appello</p>
           <h1 className="h1">Prossimi impegni</h1>
           <p className="sub">
-            {roster.length > 0
-              ? `${roster.length} giocatori in rosa. Tutti presenti finché non segni il contrario.`
-              : 'La rosa è ancora vuota.'}
+            {!staff
+              ? me
+                ? 'Segnala solo se non ci sarai. Chi non dice niente risulta presente.'
+                : 'Il tuo account non è ancora collegato a una scheda atleta: chiedi all’allenatore.'
+              : roster.length > 0
+                ? `${roster.length} giocatori in rosa. Tutti presenti finché non segni il contrario.`
+                : 'La rosa è ancora vuota.'}
           </p>
         </div>
 
@@ -145,6 +153,8 @@ export default async function Home({
             training={training}
             match={match}
             userId={profile.id}
+            lockedAthleteId={staff ? null : (me?.id ?? null)}
+            canClose={staff}
           />
         )}
       </main>

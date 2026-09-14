@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
-import type { Profile } from '@/lib/types'
+import type { Athlete, Profile } from '@/lib/types'
 
 /**
  * Legge il profilo dell'utente corrente. Il middleware ha gia' filtrato,
@@ -31,4 +31,27 @@ export async function requireAdmin(): Promise<Profile> {
   const profile = await requireProfile()
   if (profile.role !== 'admin') redirect('/')
   return profile
+}
+
+/**
+ * La scheda atleta collegata a questo account, se ce n'e' una.
+ * Solo il ruolo 'athlete' ne ha bisogno: allenatori e admin compilano
+ * l'appello di tutti, non il proprio.
+ */
+export async function myAthlete(profile: Profile): Promise<Athlete | null> {
+  if (profile.role !== 'athlete') return null
+
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('athletes')
+    .select('*')
+    .eq('profile_id', profile.id)
+    .maybeSingle()
+
+  return (data as Athlete) ?? null
+}
+
+/** Lo staff: chi fa l'appello di tutti. Speculare a is_staff() nel database. */
+export function isStaff(profile: Profile) {
+  return profile.role === 'user' || profile.role === 'admin'
 }

@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { Nav } from '@/components/nav'
 import { AttendanceBoard } from '@/components/attendance-board'
-import { requireProfile } from '@/lib/auth'
+import { isStaff, myAthlete, requireProfile } from '@/lib/auth'
 import { createClient } from '@/utils/supabase/server'
 import { formatEventDate } from '@/lib/format'
 import type { Athlete, Event, Team } from '@/lib/types'
@@ -16,6 +16,8 @@ export default async function EventPage({
   const { id } = await params
   const profile = await requireProfile()
   const supabase = await createClient()
+  const me = await myAthlete(profile)
+  const staff = isStaff(profile)
 
   const { data } = await supabase
     .from('events')
@@ -71,6 +73,8 @@ export default async function EventPage({
         <AttendanceBoard
           event={event}
           athletes={called}
+          lockedAthleteId={staff ? null : (me?.id ?? null)}
+          canClose={staff}
           initialAbsent={
             (absences ?? []) as { athlete_id: string; injury: boolean }[]
           }

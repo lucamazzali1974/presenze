@@ -13,11 +13,18 @@ export function AttendanceBoard({
   athletes,
   initialAbsent,
   userId,
+  lockedAthleteId = null,
+  canClose = true,
 }: {
   event: Event
   athletes: Athlete[]
   initialAbsent: { athlete_id: string; injury: boolean }[]
   userId: string
+  /** Se valorizzato, in elenco compare solo questo giocatore: e' l'atleta
+   *  che segna se stesso. I totali in testata restano quelli di squadra. */
+  lockedAthleteId?: string | null
+  /** Chiudere l'appello e' dello staff. */
+  canClose?: boolean
 }) {
   const supabase = useMemo(() => createClient(), [])
   const [absent, setAbsent] = useState<Map<string, boolean>>(
@@ -45,13 +52,25 @@ export function AttendanceBoard({
   const [isPending, startTransition] = useTransition()
   const [query, setQuery] = useState('')
 
+  const mine = lockedAthleteId
+    ? athletes.filter((a) => a.id === lockedAthleteId)
+    : athletes
+
   const visible = query.trim()
-    ? athletes.filter((a) =>
+    ? mine.filter((a) =>
         `${a.first_name} ${a.last_name} ${a.nickname ?? ''}`
           .toLowerCase()
           .includes(query.trim().toLowerCase())
       )
-    : athletes
+    : mine
+
+  /*
+   * Ad appello chiuso l'atleta non puo' piu' scrivere: lo impone la RLS.
+   * Va impedito anche qui, perche' persist() in caso di errore mette la
+   * modifica in coda offline: un rifiuto di permessi resterebbe in coda
+   * per sempre, riprovato ogni 30 secondi e mai accettato.
+   */
+  const canEdit = canClose || !closed
 
   const present = athletes.length - absent.size
   const injured = [...absent.values()].filter(Boolean).length
@@ -183,7 +202,7 @@ export function AttendanceBoard({
         </span>
       </div>
 
-      {athletes.length > 10 && (
+      {!lockedAthleteId && mine.length > 10 && (
         <div className="border-b border-line p-4">
           <input
             className="search"
@@ -202,7 +221,11 @@ export function AttendanceBoard({
       )}
 
       <p className="mini border-b border-line px-4 py-2">
-        Tocca un nome per segnarlo assente
+        {!canEdit
+          ? 'Appello chiuso: non è più modificabile'
+          : lockedAthleteId
+            ? 'Tocca il tuo nome se non ci sarai'
+            : 'Tocca un nome per segnarlo assente'}
       </p>
 
       <ul className="rows">
@@ -214,6 +237,7 @@ export function AttendanceBoard({
               <button
                 type="button"
                 onClick={() => toggle(a.id)}
+                disabled={!canEdit}
                 aria-pressed={isAbsent}
                 aria-label={`${fullName(a)}: ${isAbsent ? 'assente' : 'presente'}`}
                 className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left"
@@ -250,8 +274,9 @@ export function AttendanceBoard({
                 >
                   <button
                     type="button"
-                    className={isInjured ? 'pill' : 'pill'}
+                    className="pill"
                     data-on={isInjured}
+                    disabled={!canEdit}
                     onClick={() => toggleInjury(a.id)}
                     aria-pressed={isInjured}
                   >
@@ -268,23 +293,35 @@ export function AttendanceBoard({
           )
         })}
 
-        {visible.length === 0 && <li className="empty">Nessun giocatore trovato.</li>}
+        {visible.length === 0 && (
+          <li className="empty">
+            {lockedAthleteId
+              ? 'Non sei tra i convocati di questo evento.'
+              : 'Nessun giocatore trovato.'}
+          </li>
+        )}
       </ul>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line p-4">
         <p className="text-sm" style={{ color: 'var(--color-muted)', maxWidth: '22rem' }}>
-          {closed
-            ? 'L’appello è chiuso e conta nelle percentuali.'
-            : 'Chiudi l’appello quando hai finito: solo così entra nelle percentuali.'}
+          {!canClose
+            ? closed
+              ? 'L’appello è stato chiuso dall’allenatore: la tua presenza è registrata.'
+              : 'Puoi cambiare idea finché l’allenatore non chiude l’appello.'
+            : closed
+              ? 'L’appello è chiuso e conta nelle percentuali.'
+              : 'Chiudi l’appello quando hai finito: solo così entra nelle percentuali.'}
         </p>
-        <button
-          type="button"
-          onClick={toggleClosed}
-          disabled={isPending}
-          className={closed ? 'btn' : 'btn btn-primary'}
-        >
-          {closed ? 'Riapri appello' : 'Chiudi appello'}
-        </button>
+        {canClose && (
+          <button
+            type="button"
+            onClick={toggleClosed}
+            disabled={isPending}
+            className={closed ? 'btn' : 'btn btn-primary'}
+          >
+            {closed ? 'Riapri appello' : 'Chiudi appello'}
+          </button>
+        )}
       </div>
     </section>
   )

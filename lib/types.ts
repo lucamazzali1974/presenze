@@ -4,7 +4,8 @@ export type Profile = {
   id: string
   email: string | null
   full_name: string | null
-  role: 'user' | 'admin'
+  /** athlete = il giocatore che entra per segnare solo se stesso. */
+  role: 'user' | 'admin' | 'athlete'
   status: 'pending' | 'active' | 'blocked'
   created_at: string
 }
@@ -28,6 +29,8 @@ export type Athlete = {
   nickname: string | null
   active: boolean
   joined_on: string
+  /** Account collegato, se il giocatore accede da solo. */
+  profile_id: string | null
 }
 
 export type Event = {

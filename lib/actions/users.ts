@@ -5,6 +5,14 @@ import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { requireAdmin } from '@/lib/auth'
 
+type Role = 'user' | 'admin' | 'athlete'
+
+/** Un valore fuori elenco verrebbe comunque respinto dal check in database. */
+function readRole(formData: FormData): Role {
+  const raw = String(formData.get('role') ?? 'user')
+  return raw === 'admin' || raw === 'athlete' ? raw : 'user'
+}
+
 type Result = { ok?: true; error?: string }
 
 /** Crea un utente gia' attivo, senza passare dalla registrazione. */
@@ -14,7 +22,7 @@ export async function createUser(formData: FormData): Promise<Result> {
   const email = String(formData.get('email') ?? '').trim()
   const password = String(formData.get('password') ?? '')
   const full_name = String(formData.get('full_name') ?? '').trim()
-  const role = String(formData.get('role') ?? 'user') as 'user' | 'admin'
+  const role = readRole(formData)
 
   if (!email) return { error: 'L’email è obbligatoria.' }
   if (password.length < 8) {
@@ -64,7 +72,7 @@ export async function updateUser(
   const me = await requireAdmin()
 
   const full_name = String(formData.get('full_name') ?? '').trim()
-  const role = String(formData.get('role') ?? 'user') as 'user' | 'admin'
+  const role = readRole(formData)
   const status = String(formData.get('status') ?? 'pending') as
     | 'pending'
     | 'active'
@@ -108,7 +116,7 @@ export async function setUserStatus(
 
 export async function setUserRole(
   id: string,
-  role: 'user' | 'admin'
+  role: Role
 ): Promise<Result> {
   const me = await requireAdmin()
 

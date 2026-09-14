@@ -13,8 +13,11 @@ export function Nav({ profile }: { profile: Profile }) {
     ['/', 'Appello'],
     ['/atleti', 'Atleti'],
     ['/stats', 'Percentuali'],
-    ['/archivio', 'Archivio'],
   ]
+
+  // Gli archivi contengono le percentuali di tutti: la RLS li nega
+  // all'atleta, quindi non ha senso mostrargli la voce.
+  if (profile.role !== 'athlete') links.push(['/archivio', 'Archivio'])
 
   if (profile.role === 'admin') {
     links.push(

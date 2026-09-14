@@ -113,3 +113,51 @@ export async function deleteAthlete(id: string) {
   revalidatePath('/stats')
   return { ok: true }
 }
+
+/**
+ * Collega (o scollega, con null) una scheda atleta a un account.
+ * Il vincolo unique in database garantisce che un account valga per un
+ * solo giocatore: se provi a riusarlo esce un errore, non un doppione.
+ */
+export async function linkAthleteProfile(
+  athleteId: string,
+  profileId: string | null
+) {
+  await requireAdmin()
+  const supabase = await createClient()
+
+  // Un account per un giocatore solo: se era gia' su un'altra scheda,
+  // quella si libera qui. Farlo dal client sarebbero due chiamate in
+  // corsa fra loro, e il vincolo unique ne farebbe fallire una.
+  if (profileId) {
+    const { error: freeError } = await supabase
+      .from('athletes')
+      .update({ profile_id: null })
+      .eq('profile_id', profileId)
+      .neq('id', athleteId)
+
+    if (freeError) return { error: freeError.message }
+  }
+
+  const { data, error } = await supabase
+    .from('athletes')
+    .update({ profile_id: profileId })
+    .eq('id', athleteId)
+    .select('id')
+
+  if (error) {
+    if (error.code === '23505') {
+      return { error: 'Questo account è già collegato a un altro giocatore.' }
+    }
+    return { error: error.message }
+  }
+  if (!data || data.length === 0) {
+    return { error: 'Collegamento non salvato: permessi insufficienti.' }
+  }
+
+  revalidatePath('/atleti')
+  revalidatePath('/admin/users')
+  revalidatePath('/stats')
+  revalidatePath('/')
+  return { ok: true }
+}

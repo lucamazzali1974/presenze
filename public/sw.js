@@ -13,7 +13,7 @@
  * Cambiando questo file alza VERSION, altrimenti i browser tengono il vecchio.
  */
 
-const VERSION = 'presenze-v2'
+const VERSION = 'presenze-v3'
 const PAGES = 'presenze-pages'
 const OFFLINE_URL = '/offline.html'
 
@@ -70,8 +70,18 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Asset con hash nel nome: sicuri da servire dalla cache.
-  if (url.pathname.startsWith('/_next/static/')) {
+  /*
+   * Asset con hash nel nome: sicuri da servire dalla cache.
+   * In sviluppo pero' l'hash non c'e' (i chunk si chiamano sempre uguali),
+   * quindi su localhost la cache servirebbe codice vecchio: si passa
+   * sempre dalla rete.
+   */
+  const isLocal =
+    url.hostname === 'localhost' ||
+    url.hostname === '127.0.0.1' ||
+    url.hostname.endsWith('.local')
+
+  if (!isLocal && url.pathname.startsWith('/_next/static/')) {
     event.respondWith(
       caches.match(request).then(
         (hit) =>

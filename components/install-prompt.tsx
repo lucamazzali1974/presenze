@@ -62,11 +62,37 @@ export function InstallPrompt() {
   }, [])
 
   useEffect(() => {
-    // Registra il service worker: senza, Chrome non offre l'installazione.
+    /*
+     * Il service worker va registrato SOLO in produzione.
+     * In sviluppo i chunk di Next non hanno l'hash nel nome (app/page.js,
+     * main-app.js restano sempre uguali), e il service worker serve
+     * /_next/static/ con la strategia cache-first: continuerebbe a
+     * restituire il codice della sessione precedente ignorando quello
+     * appena compilato. Il sintomo e' un errore a runtime su codice che
+     * sul disco e' gia' corretto.
+     *
+     * Su localhost quindi non solo non lo registriamo: togliamo anche
+     * quelli gia' installati e svuotiamo le cache, altrimenti chi ha
+     * aperto l'app in dev prima di questa modifica se lo tiene per sempre.
+     */
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {
-        // Niente installazione, ma l'app funziona lo stesso.
-      })
+      if (process.env.NODE_ENV === 'production') {
+        navigator.serviceWorker.register('/sw.js').catch(() => {
+          // Niente installazione, ma l'app funziona lo stesso.
+        })
+      } else {
+        navigator.serviceWorker
+          .getRegistrations()
+          .then((regs) => regs.forEach((r) => r.unregister()))
+          .catch(() => {})
+
+        if ('caches' in window) {
+          caches
+            .keys()
+            .then((keys) => keys.forEach((k) => caches.delete(k)))
+            .catch(() => {})
+        }
+      }
     }
 
     if (isStandalone() || snoozed()) return

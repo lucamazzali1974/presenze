@@ -30,6 +30,7 @@ export function StatsView({
   selectedTeam = null,
   loadError = null,
   isAdmin,
+  selfOnly = false,
 }: {
   rows: StatsRow[]
   closed: ClosedSummary
@@ -37,6 +38,8 @@ export function StatsView({
   selectedTeam?: string | null
   loadError?: string | null
   isAdmin: boolean
+  /** L'atleta vede solo la propria riga: cambia i testi, non i conti. */
+  selfOnly?: boolean
 }) {
   const [showArchive, setShowArchive] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -75,7 +78,7 @@ export function StatsView({
     <main className="wrap pb-16">
       <div className="page-head">
         <p className="eyebrow">// Statistiche</p>
-        <h1 className="h1">Percentuali</h1>
+        <h1 className="h1">{selfOnly ? 'Le tue percentuali' : 'Percentuali'}</h1>
         <p className="sub">
           {closed.total === 0
             ? 'Contano solo gli appelli chiusi, non archiviati, e solo da quando il giocatore è in rosa.'
@@ -162,7 +165,7 @@ export function StatsView({
 
       {error && <p className="alert mb-4">{error}</p>}
 
-      {!loadError && closed.total > 0 && counted === 0 && rows.length > 0 && (
+      {!loadError && !selfOnly && closed.total > 0 && counted === 0 && rows.length > 0 && (
         <p className="alert mb-4">
           Ci sono {closed.total} appelli chiusi, ma nessun giocatore li sta
           conteggiando: tutti risultano in rosa da una data successiva
@@ -194,7 +197,9 @@ export function StatsView({
 
         {rows.length === 0 && (
           <li className="empty">
-            {teamLabel
+            {selfOnly
+              ? 'Il tuo account non è collegato a una scheda atleta: chiedi all’allenatore.'
+              : teamLabel
               ? `Nessun giocatore assegnato a ${teamLabel}. La rosa si compone da Squadre.`
               : closed.total === 0
                 ? 'Ancora nessun appello chiuso. Le percentuali compaiono da lì.'

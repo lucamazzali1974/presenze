@@ -8,8 +8,9 @@ import {
   setUserStatus,
   updateUser,
 } from '@/lib/actions/users'
-import { formatShort } from '@/lib/format'
-import type { Profile } from '@/lib/types'
+import { linkAthleteProfile } from '@/lib/actions/athletes'
+import { formatShort, fullName } from '@/lib/format'
+import type { Athlete, Profile } from '@/lib/types'
 
 const STATUS_LABEL: Record<Profile['status'], string> = {
   pending: 'In attesa',
@@ -25,10 +26,12 @@ const STATUS_TAG: Record<Profile['status'], string> = {
 
 export function UserManager({
   users,
+  athletes,
   meId,
   canManageAccounts,
 }: {
   users: Profile[]
+  athletes: Athlete[]
   meId: string
   canManageAccounts: boolean
 }) {
@@ -39,6 +42,11 @@ export function UserManager({
   const createRef = useRef<HTMLFormElement>(null)
 
   const pending = users.filter((u) => u.status === 'pending')
+
+  // Quale scheda atleta e' gia' collegata a quale account.
+  const athleteOf = new Map(
+    athletes.filter((a) => a.profile_id).map((a) => [a.profile_id as string, a])
+  )
 
   function run(fn: () => Promise<{ error?: string } | undefined>) {
     startTransition(async () => {
@@ -105,6 +113,7 @@ export function UserManager({
               <select name="role">
                 <option value="user">Allenatore</option>
                 <option value="admin">Amministratore</option>
+                <option value="athlete">Atleta</option>
               </select>
             </label>
           </div>
@@ -133,6 +142,15 @@ export function UserManager({
               <span className="flex flex-wrap gap-2">
                 {u.id === meId && <span className="tag">Tu</span>}
                 {u.role === 'admin' && <span className="tag info">Admin</span>}
+                {u.role === 'athlete' && (
+                  athleteOf.has(u.id) ? (
+                    <span className="tag">
+                      Atleta · {fullName(athleteOf.get(u.id)!)}
+                    </span>
+                  ) : (
+                    <span className="tag warn">Atleta senza scheda</span>
+                  )
+                )}
                 <span className={STATUS_TAG[u.status]}>{STATUS_LABEL[u.status]}</span>
               </span>
             </div>
@@ -140,6 +158,18 @@ export function UserManager({
             <p className="mt-1 text-sm" style={{ color: 'var(--color-muted)' }}>
               {u.email} · dal {formatShort(u.created_at)}
             </p>
+
+            {u.role === 'athlete' && (
+              <AthleteLink
+                user={u}
+                athletes={athletes}
+                linked={athleteOf.get(u.id) ?? null}
+                pending={isPending}
+                onLink={(athleteId, profileId) =>
+                  run(() => linkAthleteProfile(athleteId, profileId))
+                }
+              />
+            )}
 
             {editing === u.id ? (
               <form
@@ -163,6 +193,7 @@ export function UserManager({
                     <select name="role" defaultValue={u.role}>
                       <option value="user">Allenatore</option>
                       <option value="admin">Amministratore</option>
+                      <option value="athlete">Atleta</option>
                     </select>
                   </label>
                   <label className="field">
@@ -262,5 +293,68 @@ export function UserManager({
         {users.length === 0 && <li className="empty">Nessun utente registrato.</li>}
       </ul>
     </main>
+  )
+}
+
+/**
+ * Collega un account alla sua scheda atleta. Senza, il ruolo 'athlete'
+ * non sa chi segnare: l'app glielo dice, ma il collegamento lo fa l'admin.
+ */
+function AthleteLink({
+  user,
+  athletes,
+  linked,
+  pending,
+  onLink,
+}: {
+  user: Profile
+  athletes: Athlete[]
+  linked: Athlete | null
+  pending: boolean
+  onLink: (athleteId: string, profileId: string | null) => void
+}) {
+  const [choice, setChoice] = useState(linked?.id ?? '')
+
+  // Si possono scegliere solo le schede libere, piu' quella gia' collegata.
+  const selectable = athletes.filter((a) => !a.profile_id || a.id === linked?.id)
+
+  return (
+    <div className="mt-3">
+      <p className="mini mb-2">Scheda atleta</p>
+
+      <div className="row-actions" style={{ marginTop: 0 }}>
+        <label className="field" style={{ flex: '1 1 14rem' }}>
+          <span className="sr-only">Scheda atleta</span>
+          <select value={choice} onChange={(e) => setChoice(e.target.value)}>
+            <option value="">— nessuna —</option>
+            {selectable.map((a) => (
+              <option key={a.id} value={a.id}>
+                {fullName(a)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <button
+          type="button"
+          className="btn btn-sm btn-primary"
+          disabled={pending || choice === (linked?.id ?? '')}
+          onClick={() => {
+            // Scollegare vuol dire togliere il profilo alla scheda attuale.
+            if (!choice && linked) return onLink(linked.id, null)
+            if (choice) onLink(choice, user.id)
+          }}
+        >
+          Collega
+        </button>
+      </div>
+
+      {!linked && (
+        <p className="mt-2 text-sm" style={{ color: 'var(--color-faint)' }}>
+          Finché non la colleghi, questo account entra ma non ha niente da
+          segnare.
+        </p>
+      )}
+    </div>
   )
 }

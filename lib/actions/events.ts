@@ -171,16 +171,16 @@ export async function setEventClosed(id: string, closed: boolean) {
   await requireProfile()
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from('events')
-    .update({ closed_at: closed ? new Date().toISOString() : null })
-    .eq('id', id)
-    .select('id')
+  // Passa da una funzione con security definer invece che da un update
+  // diretto: la policy su events e' riservata agli admin, e allargarla
+  // darebbe allo staff anche data, luogo e squadra di ogni evento.
+  // Cosi' si tocca solo closed_at, e un atleta non chiude mai un appello.
+  const { error } = await supabase.rpc('set_event_closed', {
+    p_event_id: id,
+    p_closed: closed,
+  })
 
   if (error) return { error: error.message }
-  if (!data || data.length === 0) {
-    return { error: 'Appello non aggiornato: permessi insufficienti.' }
-  }
 
   revalidatePath('/')
   revalidatePath('/admin/events')

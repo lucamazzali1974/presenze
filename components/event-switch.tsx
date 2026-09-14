@@ -17,10 +17,14 @@ export function EventSwitch({
   training,
   match,
   userId,
+  lockedAthleteId = null,
+  canClose = true,
 }: {
   training: Board
   match: Board
   userId: string
+  lockedAthleteId?: string | null
+  canClose?: boolean
 }) {
   // Il prossimo in ordine di tempo e' quello che si apre per primo.
   const soonest =
@@ -65,6 +69,8 @@ export function EventSwitch({
           athletes={current.roster}
           initialAbsent={current.absent}
           userId={userId}
+          lockedAthleteId={lockedAthleteId}
+          canClose={canClose}
         />
       ) : (
         <div className="panel mt-5">

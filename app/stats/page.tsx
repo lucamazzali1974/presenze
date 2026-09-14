@@ -1,6 +1,6 @@
 import { Nav } from '@/components/nav'
 import { StatsView, type ClosedSummary, type StatsRow } from '@/components/stats-view'
-import { requireProfile } from '@/lib/auth'
+import { isStaff, myAthlete, requireProfile } from '@/lib/auth'
 import { createClient } from '@/utils/supabase/server'
 import { byType, forTeam, sumStats } from '@/lib/stats'
 import type { Athlete, AttendanceStatRow, EventType, Team } from '@/lib/types'
@@ -15,6 +15,9 @@ export default async function StatsPage({
   const profile = await requireProfile()
   const supabase = await createClient()
   const params = await searchParams
+
+  const me = await myAthlete(profile)
+  const staff = isStaff(profile)
 
   // La rosa si legge a parte: cosi' in elenco compaiono tutti, anche chi
   // non ha ancora nessun evento a referto (la vista fa un join e per lui
@@ -64,12 +67,19 @@ export default async function StatsPage({
       })()
     : athletes
 
+  /*
+   * L'atleta vede solo se stesso. La vista attendance_stats gia' gli
+   * restituisce la sola riga sua, ma l'elenco qui nasce dalla tabella
+   * athletes: senza questo filtro vedrebbe i compagni tutti a "—".
+   */
+  const listed = staff ? teamRoster : teamRoster.filter((a) => a.id === me?.id)
+
   const byAthlete = new Map<string, AttendanceStatRow[]>()
   for (const s of stats) {
     byAthlete.set(s.athlete_id, [...(byAthlete.get(s.athlete_id) ?? []), s])
   }
 
-  const rows: StatsRow[] = teamRoster
+  const rows: StatsRow[] = listed
     .map((a) => {
       const mine = forTeam(byAthlete.get(a.id) ?? [], team)
       return {
@@ -105,6 +115,7 @@ export default async function StatsPage({
         selectedTeam={team}
         loadError={error}
         isAdmin={profile.role === 'admin'}
+        selfOnly={!staff}
       />
     </>
   )
