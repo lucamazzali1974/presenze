@@ -13,7 +13,7 @@
  * Cambiando questo file alza VERSION, altrimenti i browser tengono il vecchio.
  */
 
-const VERSION = 'presenze-v3'
+const VERSION = 'presenze-v4'
 const PAGES = 'presenze-pages'
 const OFFLINE_URL = '/offline.html'
 
@@ -94,4 +94,59 @@ self.addEventListener('fetch', (event) => {
       )
     )
   }
+})
+
+
+/*
+ * Notifiche push.
+ *
+ * Arrivano dal job del mattino (app/api/cron/reminders). Il payload e'
+ * JSON: { title, body, url, tag }. Il tag fa si' che due promemoria
+ * dello stesso evento si sostituiscano invece di impilarsi.
+ *
+ * Su iPhone funziona solo con l'app installata sulla schermata Home,
+ * da iOS 16.4 in su: da Safari normale il permesso non si puo' neanche
+ * chiedere.
+ */
+self.addEventListener('push', (event) => {
+  let payload = {}
+  try {
+    payload = event.data ? event.data.json() : {}
+  } catch {
+    payload = { body: event.data ? event.data.text() : '' }
+  }
+
+  const title = payload.title || 'Presenze'
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: payload.body || '',
+      tag: payload.tag || 'presenze',
+      renotify: false,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      data: { url: payload.url || '/' },
+    })
+  )
+})
+
+/* Il tocco porta all'appello dell'evento, non a una pagina qualsiasi. */
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const target = (event.notification.data && event.notification.data.url) || '/'
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) => {
+        // Se l'app e' gia' aperta si riusa quella finestra.
+        for (const client of clients) {
+          if ('focus' in client) {
+            client.navigate(target)
+            return client.focus()
+          }
+        }
+        return self.clients.openWindow(target)
+      })
+  )
 })

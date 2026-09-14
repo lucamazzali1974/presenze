@@ -43,6 +43,17 @@ export default async function Home({
   // convocato: quello lo decide l'evento stesso.
   const team = teams.some((t) => t.id === params.team) ? params.team! : null
 
+  /*
+   * Il giocatore non sceglie: vede gli eventi delle sue squadre, piu'
+   * quelli di tutta la societa'. Niente selettore, niente "tutte le
+   * squadre" — non ha nient'altro da guardare.
+   */
+  const myTeamIds = me
+    ? members.filter((m) => m.athlete_id === me.id).map((m) => m.team_id)
+    : []
+
+  const myTeams = teams.filter((t) => myTeamIds.includes(t.id))
+
   // 4 ore di tolleranza: l'appello si compila anche a evento iniziato.
   const since = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
 
@@ -55,7 +66,14 @@ export default async function Home({
       .gte('starts_at', since)
 
     // Gli eventi senza squadra riguardano tutti, quindi restano in lista.
-    if (team) query = query.or(`team_id.eq.${team},team_id.is.null`)
+    if (!staff && me) {
+      query =
+        myTeamIds.length > 0
+          ? query.or(`team_id.is.null,team_id.in.(${myTeamIds.join(',')})`)
+          : query.is('team_id', null)
+    } else if (team) {
+      query = query.or(`team_id.eq.${team},team_id.is.null`)
+    }
 
     const { data } = await query
       .order('starts_at', { ascending: true })
@@ -112,7 +130,7 @@ export default async function Home({
           </p>
         </div>
 
-        {teams.length > 0 && (
+        {staff && teams.length > 0 && (
           <div className="filters mb-4">
             <Link
               href="/"
@@ -136,6 +154,16 @@ export default async function Home({
           </div>
         )}
 
+        {!staff && myTeams.length > 0 && (
+          <p className="mb-4 flex flex-wrap gap-2">
+            {myTeams.map((t) => (
+              <span key={t.id} className="pill" data-on="true">
+                {t.name}
+              </span>
+            ))}
+          </p>
+        )}
+
         {roster.length === 0 ? (
           <div className="panel p-6">
             <p style={{ color: 'var(--color-muted)' }}>
@@ -149,7 +177,7 @@ export default async function Home({
           </div>
         ) : (
           <EventSwitch
-            key={team ?? 'all'}
+            key={staff ? (team ?? 'all') : 'mine'}
             training={training}
             match={match}
             userId={profile.id}

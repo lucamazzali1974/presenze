@@ -383,10 +383,31 @@ function AccountPanel({
   if (!enabled) {
     return (
       <div className="mt-4 panel p-4">
-        <p className="text-sm" style={{ color: 'var(--color-muted)' }}>
-          Per creare accessi serve <code>SUPABASE_SECRET_KEY</code> tra le
-          variabili d&rsquo;ambiente. Senza, gli accessi esistenti funzionano ma
-          non se ne creano di nuovi.
+        <p className="mini">Manca la chiave</p>
+
+        <p className="mt-2 text-sm" style={{ color: 'var(--color-muted)' }}>
+          Per creare accessi serve <code>SUPABASE_SECRET_KEY</code>, che qui non
+          risulta impostata. La trovi in Supabase &rsaquo; Settings &rsaquo; API
+          Keys &rsaquo; Secret keys: inizia per <code>sb_secret_</code>.
+        </p>
+
+        <p className="mt-3 text-sm" style={{ color: 'var(--color-muted)' }}>
+          <strong>In locale:</strong> aggiungi la riga{' '}
+          <code>SUPABASE_SECRET_KEY=...</code> al file <code>.env.local</code> e
+          riavvia <code>npm run dev</code>. Il file va letto all&rsquo;avvio, quindi
+          il riavvio non è facoltativo.
+        </p>
+
+        <p className="mt-2 text-sm" style={{ color: 'var(--color-muted)' }}>
+          <strong>Online:</strong> Vercel &rsaquo; Settings &rsaquo; Environment
+          Variables, su Production, Preview e Development. Poi{' '}
+          <strong>Redeploy</strong>: le variabili si applicano solo ai deploy
+          nuovi, quello già online non la vede.
+        </p>
+
+        <p className="mt-3 text-sm" style={{ color: 'var(--color-faint)' }}>
+          Gli accessi già creati continuano a funzionare: senza la chiave non se
+          ne creano di nuovi e non si cambiano le password.
         </p>
       </div>
     )

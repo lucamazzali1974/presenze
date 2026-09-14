@@ -51,6 +51,10 @@ update auth.users set email_confirmed_at = now() where email_confirmed_at is nul
 | `NEXT_PUBLIC_SUPABASE_URL` | Settings > Data API | si |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Settings > API Keys | si |
 | `SUPABASE_SECRET_KEY` | Settings > API Keys, sezione Secret keys | no |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | `npx web-push generate-vapid-keys` | solo per le push |
+| `VAPID_PRIVATE_KEY` | idem, la meta' privata | solo per le push |
+| `VAPID_SUBJECT` | `mailto:tua@email.it` | solo per le push |
+| `CRON_SECRET` | inventala, lunga | solo per le push |
 
 La secret key serve solo a creare, eliminare e cambiare password agli utenti
 da `/admin/users`. Bypassa la RLS: niente prefisso `NEXT_PUBLIC_`, mai in un
@@ -64,6 +68,7 @@ creano dall'interno.
 | `/` | tutti | appello del prossimo allenamento e della prossima partita |
 | `/atleti` | tutti | rosa completa; form, modifiche e accessi solo per admin |
 | `/calendario` | non admin | eventi in programma in sola lettura, con link all'appello |
+| `/profilo` | tutti | come entri, cambio password, notifiche (solo atleti) |
 | `/stats` | tutti | percentuali per giocatore, allenamenti e partite separati |
 | `/events/[id]` | tutti | appello di un evento specifico, anche passato |
 | `/admin/events` | admin | calendario, date singole e ricorrenti |
@@ -242,6 +247,57 @@ Limite noto: due dispositivi che modificano lo stesso atleta offline si
 sovrascrivono a vicenda, vince chi sincronizza per ultimo. Con un solo
 allenatore che compila non capita.
 
+## Notifiche push
+
+Nei giorni con un evento, i giocatori ricevono un promemoria alle 9 del
+mattino: *"Oggi allenamento alle 19:00 — Muggio' — segnala se non ci
+sarai"*. Il tocco apre l'appello di quell'evento. Lo staff non le riceve:
+compila l'appello guardando il campo.
+
+**Riceve solo chi ha davvero bisogno di rispondere**: i convocati
+dell'evento (la rosa della sua squadra, o tutti se l'evento non ne ha),
+con un account atleta attivo, che non si sono gia' segnati assenti.
+
+### Come si mette in piedi
+
+1. `npx web-push generate-vapid-keys` genera la coppia di chiavi.
+2. Su Vercel (Production, Preview, Development) e in `.env.local`:
+   `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+   (un `mailto:`), e `CRON_SECRET` a piacere. Poi **Redeploy**.
+3. Esegui `supabase/migration-007-notifiche.sql`.
+4. Su GitHub, Settings > Secrets and variables > Actions: `APP_URL` e
+   `CRON_SECRET` (lo stesso valore di Vercel).
+5. Ogni giocatore attiva le notifiche dal suo **Profilo**. Il permesso
+   deve partire da un suo tocco: non si puo' forzare da codice.
+
+### Perche' il workflow parte due volte
+
+`.github/workflows/reminders.yml` gira alle 07:00 e alle 08:00 UTC. Cron
+non conosce l'ora legale, quindi una delle due corse cade alle 9 italiane
+e l'altra no: la API route controlla l'ora locale e scarta quella
+sbagliata. Il Vercel Cron non andava bene: sul piano Hobby e' limitato a
+una volta al giorno con precisione a +/- 59 minuti.
+
+`reminder_log` (una riga per evento e per giorno, chiave primaria
+`event_id + sent_on`) impedisce il doppio invio: la riga si scrive prima
+di spedire, e il conflitto e' il segnale di "gia' fatto". La tabella ha
+la RLS attiva e nessuna policy, quindi ci arriva solo il job con la
+secret key.
+
+Per provarla senza aspettare: Actions > Promemoria del mattino > Run
+workflow, spuntando **force**.
+
+### Limiti da conoscere
+
+Su iPhone le push arrivano **solo con l'app installata** sulla schermata
+Home, da iOS 16.4 in su. Da Safari normale il permesso non si puo'
+neanche chiedere, e il Profilo lo dice spiegando come installarla. Su
+Android funzionano anche dal browser.
+
+Le iscrizioni scadono da sole: quando il servizio push risponde 404 o
+410 la riga viene cancellata, e il giocatore deve riattivarle dal
+Profilo.
+
 ## Temi
 
 Scuro di default, chiaro con l'interruttore in alto a destra. La scelta sta in
@@ -276,6 +332,7 @@ supabase/migration-003-joined-on.sql   allinea joined_on della rosa esistente
 supabase/migration-004-orari.sql       audit degli orari salvati col fuso sbagliato
 supabase/migration-005-squadre.sql     squadre e appartenenza multipla
 supabase/migration-006-accesso-atleti.sql  ruolo athlete, RLS per atleta
+supabase/migration-007-notifiche.sql   iscrizioni push e registro invii
 ```
 
 ## Requisiti

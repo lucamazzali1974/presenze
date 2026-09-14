@@ -1,6 +1,6 @@
 import { Nav } from '@/components/nav'
 import { AthleteManager } from '@/components/athlete-manager'
-import { requireProfile } from '@/lib/auth'
+import { isStaff, myAthlete, requireProfile } from '@/lib/auth'
 import { createClient } from '@/utils/supabase/server'
 import { hasAdminKey } from '@/utils/supabase/admin'
 import type { Athlete, Profile, Team, TeamMember } from '@/lib/types'
@@ -11,6 +11,9 @@ export default async function AthletesPage() {
   const profile = await requireProfile()
   const isAdmin = profile.role === 'admin'
   const supabase = await createClient()
+
+  const me = await myAthlete(profile)
+  const staff = isStaff(profile)
 
   // Chi non e' admin vede solo chi e' effettivamente in rosa.
   let query = supabase.from('athletes').select('*')
@@ -45,11 +48,41 @@ export default async function AthletesPage() {
     if (account) accountOf[a.id] = account
   }
 
+  /*
+   * Il giocatore vede i compagni di squadra, non tutta la societa'.
+   * E' un filtro di visibilita', non una barriera: la RLS su athletes
+   * resta aperta a ogni utente attivo, perche' il tabellone dell'appello
+   * ha bisogno della rosa per contare i presenti anche sugli eventi
+   * senza squadra.
+   */
+  const roster = (data ?? []) as Athlete[]
+
+  const visible = (() => {
+    if (staff || !me) return roster
+
+    const myTeamIds = new Set(
+      ((members ?? []) as TeamMember[])
+        .filter((m) => m.athlete_id === me.id)
+        .map((m) => m.team_id)
+    )
+
+    if (myTeamIds.size === 0) return roster.filter((a) => a.id === me.id)
+
+    const teammates = new Set(
+      ((members ?? []) as TeamMember[])
+        .filter((m) => myTeamIds.has(m.team_id))
+        .map((m) => m.athlete_id)
+    )
+    teammates.add(me.id)
+
+    return roster.filter((a) => teammates.has(a.id))
+  })()
+
   return (
     <>
       <Nav profile={profile} />
       <AthleteManager
-        athletes={(data ?? []) as Athlete[]}
+        athletes={visible}
         teamsOf={teamsOf}
         hasTeams={((teams ?? []) as Team[]).length > 0}
         accountOf={accountOf}

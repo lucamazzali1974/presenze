@@ -16,6 +16,8 @@ export function Nav({ profile }: { profile: Profile }) {
   if (profile.role !== 'admin') links.push(['/calendario', 'Calendario'])
 
   links.push(['/atleti', 'Atleti'], ['/stats', 'Percentuali'])
+  // Da qui ognuno si cambia la password, senza passare dall'admin.
+  const tail: [string, string][] = [['/profilo', 'Profilo']]
 
   // Gli archivi contengono le percentuali di tutti: la RLS li nega
   // all'atleta, quindi non ha senso mostrargli la voce.
@@ -28,6 +30,8 @@ export function Nav({ profile }: { profile: Profile }) {
       ['/admin/users', 'Utenti']
     )
   }
+
+  links.push(...tail)
 
   function isActive(href: string) {
     if (href === '/') return pathname === '/' || pathname.startsWith('/events')
