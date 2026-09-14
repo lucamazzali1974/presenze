@@ -1,11 +1,12 @@
 'use client'
 
+import Link from 'next/link'
 import { useRef, useState, useTransition } from 'react'
 import { createArchive } from '@/lib/actions/archives'
 import { AthleteName } from '@/components/athlete-name'
 import { download, slugDate, statsCsv } from '@/lib/csv'
 import { formatDate } from '@/lib/format'
-import type { Athlete, AttendanceStat } from '@/lib/types'
+import type { Athlete, AttendanceStat, Team } from '@/lib/types'
 
 export type StatsRow = {
   id: string
@@ -25,11 +26,15 @@ export type ClosedSummary = {
 export function StatsView({
   rows,
   closed,
+  teams,
+  selectedTeam = null,
   loadError = null,
   isAdmin,
 }: {
   rows: StatsRow[]
   closed: ClosedSummary
+  teams: Team[]
+  selectedTeam?: string | null
   loadError?: string | null
   isAdmin: boolean
 }) {
@@ -39,6 +44,7 @@ export function StatsView({
   const formRef = useRef<HTMLFormElement>(null)
 
   const counted = rows.filter((r) => r.training || r.match).length
+  const teamLabel = teams.find((t) => t.id === selectedTeam)?.name ?? null
 
   function exportCsv() {
     const csv = statsCsv(
@@ -49,7 +55,10 @@ export function StatsView({
         match: r.match,
       }))
     )
-    download(`presenze-${slugDate()}.csv`, csv)
+    const suffix = teamLabel
+      ? `-${teamLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+      : ''
+    download(`presenze${suffix}-${slugDate()}.csv`, csv)
   }
 
   function submitArchive(formData: FormData) {
@@ -73,6 +82,25 @@ export function StatsView({
             : `${closed.total} ${closed.total === 1 ? 'appello chiuso' : 'appelli chiusi'} in archivio corrente · ${closed.training} allenamenti · ${closed.match} partite`}
         </p>
 
+        {teams.length > 0 && (
+          <div className="filters mt-4">
+            <Link href="/stats" className="pill" data-on={selectedTeam === null} scroll={false}>
+              Tutte le squadre
+            </Link>
+            {teams.map((t) => (
+              <Link
+                key={t.id}
+                href={`/stats?team=${t.id}`}
+                className="pill"
+                data-on={selectedTeam === t.id}
+                scroll={false}
+              >
+                {t.name}
+              </Link>
+            ))}
+          </div>
+        )}
+
         <div className="row-actions mt-5">
           <button
             type="button"
@@ -83,7 +111,7 @@ export function StatsView({
             Scarica CSV
           </button>
 
-          {isAdmin && (
+          {isAdmin && !selectedTeam && (
             <button
               type="button"
               className="btn btn-primary"
@@ -166,9 +194,11 @@ export function StatsView({
 
         {rows.length === 0 && (
           <li className="empty">
-            {closed.total === 0
-              ? 'Ancora nessun appello chiuso. Le percentuali compaiono da lì.'
-              : 'La rosa è vuota: aggiungi i giocatori dalla pagina Atleti.'}
+            {teamLabel
+              ? `Nessun giocatore assegnato a ${teamLabel}. La rosa si compone da Squadre.`
+              : closed.total === 0
+                ? 'Ancora nessun appello chiuso. Le percentuali compaiono da lì.'
+                : 'La rosa è vuota: aggiungi i giocatori dalla pagina Atleti.'}
           </li>
         )}
       </ul>

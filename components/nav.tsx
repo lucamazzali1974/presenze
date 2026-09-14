@@ -17,7 +17,11 @@ export function Nav({ profile }: { profile: Profile }) {
   ]
 
   if (profile.role === 'admin') {
-    links.push(['/admin/events', 'Calendario'], ['/admin/users', 'Utenti'])
+    links.push(
+      ['/admin/events', 'Calendario'],
+      ['/admin/teams', 'Squadre'],
+      ['/admin/users', 'Utenti']
+    )
   }
 
   function isActive(href: string) {

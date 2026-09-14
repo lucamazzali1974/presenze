@@ -13,9 +13,13 @@ import type { Athlete } from '@/lib/types'
 
 export function AthleteManager({
   athletes,
+  teamsOf = {},
+  hasTeams = false,
   isAdmin,
 }: {
   athletes: Athlete[]
+  teamsOf?: Record<string, string[]>
+  hasTeams?: boolean
   isAdmin: boolean
 }) {
   const formRef = useRef<HTMLFormElement>(null)
@@ -177,6 +181,19 @@ export function AthleteManager({
                   <AthleteName athlete={a} />
                   {!a.active && <span className="tag">Fuori rosa</span>}
                 </div>
+
+                {hasTeams && (
+                  <p className="mt-2 flex flex-wrap gap-2">
+                    {(teamsOf[a.id] ?? []).map((name) => (
+                      <span key={name} className="tag">
+                        {name}
+                      </span>
+                    ))}
+                    {(teamsOf[a.id] ?? []).length === 0 && (
+                      <span className="tag warn">Nessuna squadra</span>
+                    )}
+                  </p>
+                )}
 
                 {a.joined_on && (
                   <p className="mini mt-2">

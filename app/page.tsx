@@ -3,56 +3,91 @@ import { Nav } from '@/components/nav'
 import { EventSwitch } from '@/components/event-switch'
 import { requireProfile } from '@/lib/auth'
 import { createClient } from '@/utils/supabase/server'
-import type { Athlete, Event } from '@/lib/types'
+import type { Athlete, Event, EventType, Team } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
-async function nextEvent(type: 'training' | 'match') {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ team?: string }>
+}) {
+  const profile = await requireProfile()
   const supabase = await createClient()
+  const params = await searchParams
+
+  const [{ data: athletesData }, { data: teamsData }, { data: membersData }] =
+    await Promise.all([
+      supabase
+        .from('athletes')
+        .select('*')
+        .eq('active', true)
+        .order('last_name', { ascending: true }),
+      supabase
+        .from('teams')
+        .select('*')
+        .eq('active', true)
+        .order('name', { ascending: true }),
+      supabase.from('team_members').select('*'),
+    ])
+
+  const roster = (athletesData ?? []) as Athlete[]
+  const teams = (teamsData ?? []) as Team[]
+  const members = (membersData ?? []) as { team_id: string; athlete_id: string }[]
+
+  // La squadra scelta filtra quale sia il "prossimo" evento, non chi e'
+  // convocato: quello lo decide l'evento stesso.
+  const team = teams.some((t) => t.id === params.team) ? params.team! : null
 
   // 4 ore di tolleranza: l'appello si compila anche a evento iniziato.
   const since = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
 
-  const { data } = await supabase
-    .from('events')
-    .select('*')
-    .eq('type', type)
-    .is('archive_id', null)
-    .gte('starts_at', since)
-    .order('starts_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-
-  if (!data) return null
-
-  const event = data as Event
-
-  const { data: absences } = await supabase
-    .from('absences')
-    .select('athlete_id, injury')
-    .eq('event_id', event.id)
-
-  return {
-    event,
-    absent: (absences ?? []) as { athlete_id: string; injury: boolean }[],
-  }
-}
-
-export default async function Home() {
-  const profile = await requireProfile()
-  const supabase = await createClient()
-
-  const [{ data: athletes }, training, match] = await Promise.all([
-    supabase
-      .from('athletes')
+  async function nextEvent(type: EventType) {
+    let query = supabase
+      .from('events')
       .select('*')
-      .eq('active', true)
-      .order('last_name', { ascending: true }),
-    nextEvent('training'),
-    nextEvent('match'),
-  ])
+      .eq('type', type)
+      .is('archive_id', null)
+      .gte('starts_at', since)
 
-  const roster = (athletes ?? []) as Athlete[]
+    // Gli eventi senza squadra riguardano tutti, quindi restano in lista.
+    if (team) query = query.or(`team_id.eq.${team},team_id.is.null`)
+
+    const { data } = await query
+      .order('starts_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (!data) return null
+
+    const event = data as Event
+
+    const { data: absences } = await supabase
+      .from('absences')
+      .select('athlete_id, injury')
+      .eq('event_id', event.id)
+
+    // Convocati: la rosa della squadra dell'evento, o tutti se non ne ha.
+    const called = event.team_id
+      ? (() => {
+          const ids = new Set(
+            members.filter((m) => m.team_id === event.team_id).map((m) => m.athlete_id)
+          )
+          return roster.filter((a) => ids.has(a.id))
+        })()
+      : roster
+
+    return {
+      event,
+      absent: (absences ?? []) as { athlete_id: string; injury: boolean }[],
+      roster: called,
+      teamName: event.team_id
+        ? (teams.find((t) => t.id === event.team_id)?.name ?? 'Squadra rimossa')
+        : null,
+    }
+  }
+
+  const [training, match] = await Promise.all([nextEvent('training'), nextEvent('match')])
 
   return (
     <>
@@ -69,6 +104,30 @@ export default async function Home() {
           </p>
         </div>
 
+        {teams.length > 0 && (
+          <div className="filters mb-4">
+            <Link
+              href="/"
+              className="pill"
+              data-on={team === null}
+              scroll={false}
+            >
+              Tutte le squadre
+            </Link>
+            {teams.map((t) => (
+              <Link
+                key={t.id}
+                href={`/?team=${t.id}`}
+                className="pill"
+                data-on={team === t.id}
+                scroll={false}
+              >
+                {t.name}
+              </Link>
+            ))}
+          </div>
+        )}
+
         {roster.length === 0 ? (
           <div className="panel p-6">
             <p style={{ color: 'var(--color-muted)' }}>
@@ -82,9 +141,9 @@ export default async function Home() {
           </div>
         ) : (
           <EventSwitch
+            key={team ?? 'all'}
             training={training}
             match={match}
-            athletes={roster}
             userId={profile.id}
           />
         )}

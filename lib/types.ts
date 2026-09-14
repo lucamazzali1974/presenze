@@ -9,6 +9,18 @@ export type Profile = {
   created_at: string
 }
 
+export type Team = {
+  id: string
+  name: string
+  active: boolean
+}
+
+/** Un atleta puo' stare in piu' squadre: l'appartenenza e' una tabella ponte. */
+export type TeamMember = {
+  team_id: string
+  athlete_id: string
+}
+
 export type Athlete = {
   id: string
   first_name: string
@@ -27,6 +39,8 @@ export type Event = {
   series_id: string | null
   closed_at: string | null
   archive_id: string | null
+  /** null = evento di tutta la societa', vale per chiunque. */
+  team_id: string | null
 }
 
 export type Absence = {
@@ -46,6 +60,13 @@ export type AttendanceStat = {
   pct: number
   injuries: number
 }
+
+/**
+ * La vista attendance_stats spezza per squadra. Il totale su piu' squadre
+ * lo somma l'app: vedi sumStats in lib/stats.ts.
+ * Gli snapshot degli archivi restano nella forma aggregata (senza team_id).
+ */
+export type AttendanceStatRow = AttendanceStat & { team_id: string | null }
 
 export type Archive = {
   id: string

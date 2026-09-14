@@ -66,6 +66,7 @@ creano dall'interno.
 | `/stats` | tutti | percentuali per giocatore, allenamenti e partite separati |
 | `/events/[id]` | tutti | appello di un evento specifico, anche passato |
 | `/admin/events` | admin | calendario, date singole e ricorrenti |
+| `/admin/teams` | admin | squadre e composizione delle rose |
 | `/archivio` | tutti | periodi archiviati; ripristino ed eliminazione per gli admin |
 | `/archivio/[id]` | tutti | percentuali fotografate e calendario del periodo, con CSV |
 | `/admin/users` | admin | accessi: creazione, approvazione, blocco, modifica, eliminazione |
@@ -81,6 +82,34 @@ Il workflow in `.github/workflows/keepalive.yml` evita che il progetto
 Supabase free vada in pausa dopo 7 giorni di inattivita': aggiungi i secret
 `SUPABASE_URL` e `SUPABASE_ANON_KEY` nelle impostazioni del repository (per
 il secondo vale anche la publishable key).
+
+## Squadre
+
+Un giocatore puo' stare in **piu' squadre** (l'U18 che gioca anche in prima):
+l'appartenenza e' la tabella ponte `team_members`, non una colonna su
+`athletes`.
+
+Un evento ha `team_id`, e **`null` significa "tutta la societa'"**: vale per
+chiunque sia in rosa. Gli eventi creati prima delle squadre restano cosi',
+quindi l'app continua a funzionare come sempre finche' non crei la prima
+squadra.
+
+La regola di conteggio sta in `event_covers_athlete(team_id, athlete_id)`:
+un evento entra nelle percentuali di un atleta solo se non ha squadra oppure
+se l'atleta e' iscritto a quella squadra. Senza, un U18 risulterebbe assente
+a ogni allenamento della prima squadra.
+
+`attendance_stats` ha quindi una riga per **atleta, tipo e squadra**. Il
+totale su piu' squadre lo somma l'app (`lib/stats.ts`, `sumStats`), che
+ricalcola la percentuale sui totali invece di fare la media delle
+percentuali: 1/1 e 0/9 non fanno il 50%.
+
+Eliminare una squadra non cancella niente: gli atleti restano, le presenze
+restano, e i suoi eventi tornano `team_id` nullo, cioe' validi per tutti.
+
+Gli **archivi** restano trasversali: si archivia un periodo, non una squadra,
+e la fotografia resta nella forma aggregata di prima. Per questo il pulsante
+"Archivia un periodo" compare solo con il filtro su "Tutte le squadre".
 
 ## Archivi
 
@@ -184,7 +213,10 @@ lib/auth.ts         requireProfile() e requireAdmin()
 utils/supabase/     client browser, server, middleware, admin
 middleware.ts       refresh sessione e gate pending/blocked/admin
 supabase/schema.sql   schema completo per installazioni nuove
-supabase/migration-002-archivi.sql  infortuni e archivi, per database esistenti
+supabase/migration-002-archivi.sql     infortuni e archivi
+supabase/migration-003-joined-on.sql   allinea joined_on della rosa esistente
+supabase/migration-004-orari.sql       audit degli orari salvati col fuso sbagliato
+supabase/migration-005-squadre.sql     squadre e appartenenza multipla
 ```
 
 ## Requisiti

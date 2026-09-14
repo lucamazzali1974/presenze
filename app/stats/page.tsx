@@ -2,18 +2,24 @@ import { Nav } from '@/components/nav'
 import { StatsView, type ClosedSummary, type StatsRow } from '@/components/stats-view'
 import { requireProfile } from '@/lib/auth'
 import { createClient } from '@/utils/supabase/server'
-import type { Athlete, AttendanceStat, EventType } from '@/lib/types'
+import { byType, forTeam, sumStats } from '@/lib/stats'
+import type { Athlete, AttendanceStatRow, EventType, Team } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
-export default async function StatsPage() {
+export default async function StatsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ team?: string }>
+}) {
   const profile = await requireProfile()
   const supabase = await createClient()
+  const params = await searchParams
 
   // La rosa si legge a parte: cosi' in elenco compaiono tutti, anche chi
   // non ha ancora nessun evento a referto (la vista fa un join e per lui
   // non produrrebbe nessuna riga).
-  const [statsRes, athletesRes, closedRes] = await Promise.all([
+  const [statsRes, athletesRes, closedRes, teamsRes, membersRes] = await Promise.all([
     supabase.from('attendance_stats').select('*'),
     supabase
       .from('athletes')
@@ -22,9 +28,11 @@ export default async function StatsPage() {
       .order('last_name', { ascending: true }),
     supabase
       .from('events')
-      .select('type, starts_at')
+      .select('type, starts_at, team_id')
       .not('closed_at', 'is', null)
       .is('archive_id', null),
+    supabase.from('teams').select('*').order('name', { ascending: true }),
+    supabase.from('team_members').select('*'),
   ])
 
   const error =
@@ -33,43 +41,57 @@ export default async function StatsPage() {
     closedRes.error?.message ??
     null
 
-  const stats = (statsRes.data ?? []) as AttendanceStat[]
+  const stats = (statsRes.data ?? []) as AttendanceStatRow[]
   const athletes = (athletesRes.data ?? []) as Athlete[]
+  const teams = (teamsRes.data ?? []) as Team[]
+  const members = (membersRes.data ?? []) as { team_id: string; athlete_id: string }[]
   const closedEvents = (closedRes.data ?? []) as {
     type: EventType
     starts_at: string
+    team_id: string | null
   }[]
 
-  const byAthlete = new Map<
-    string,
-    { training: AttendanceStat | null; match: AttendanceStat | null }
-  >()
+  const team = teams.some((t) => t.id === params.team) ? params.team! : null
 
+  // Con una squadra scelta restano in elenco i suoi giocatori; gli eventi
+  // senza squadra continuano a contare per tutti.
+  const teamRoster = team
+    ? (() => {
+        const ids = new Set(
+          members.filter((m) => m.team_id === team).map((m) => m.athlete_id)
+        )
+        return athletes.filter((a) => ids.has(a.id))
+      })()
+    : athletes
+
+  const byAthlete = new Map<string, AttendanceStatRow[]>()
   for (const s of stats) {
-    const found = byAthlete.get(s.athlete_id) ?? { training: null, match: null }
-    found[s.type] = s
-    byAthlete.set(s.athlete_id, found)
+    byAthlete.set(s.athlete_id, [...(byAthlete.get(s.athlete_id) ?? []), s])
   }
 
-  const rows: StatsRow[] = athletes
+  const rows: StatsRow[] = teamRoster
     .map((a) => {
-      const found = byAthlete.get(a.id)
+      const mine = forTeam(byAthlete.get(a.id) ?? [], team)
       return {
         id: a.id,
         sort: `${a.last_name} ${a.first_name}`,
         athlete: a,
-        training: found?.training ?? null,
-        match: found?.match ?? null,
+        training: sumStats(byType(mine, 'training')),
+        match: sumStats(byType(mine, 'match')),
       }
     })
     .sort((a, b) => a.sort.localeCompare(b.sort, 'it'))
 
-  const dates = closedEvents.map((e) => e.starts_at).sort()
+  const relevant = team
+    ? closedEvents.filter((e) => e.team_id === team || e.team_id === null)
+    : closedEvents
+
+  const dates = relevant.map((e) => e.starts_at).sort()
 
   const closed: ClosedSummary = {
-    total: closedEvents.length,
-    training: closedEvents.filter((e) => e.type === 'training').length,
-    match: closedEvents.filter((e) => e.type === 'match').length,
+    total: relevant.length,
+    training: relevant.filter((e) => e.type === 'training').length,
+    match: relevant.filter((e) => e.type === 'match').length,
     firstAt: dates[0] ?? null,
   }
 
@@ -79,6 +101,8 @@ export default async function StatsPage() {
       <StatsView
         rows={rows}
         closed={closed}
+        teams={teams}
+        selectedTeam={team}
         loadError={error}
         isAdmin={profile.role === 'admin'}
       />

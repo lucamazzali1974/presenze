@@ -8,17 +8,18 @@ import type { Athlete, Event } from '@/lib/types'
 type Board = {
   event: Event
   absent: { athlete_id: string; injury: boolean }[]
+  /** I convocati: la rosa della squadra dell'evento, o tutti se non ne ha. */
+  roster: Athlete[]
+  teamName: string | null
 } | null
 
 export function EventSwitch({
   training,
   match,
-  athletes,
   userId,
 }: {
   training: Board
   match: Board
-  athletes: Athlete[]
   userId: string
 }) {
   // Il prossimo in ordine di tempo e' quello che si apre per primo.
@@ -46,7 +47,6 @@ export function EventSwitch({
           type="training"
           selected={tab === 'training'}
           isNext={soonest === 'training'}
-          athletes={athletes.length}
           onSelect={() => setTab('training')}
         />
         <EventCard
@@ -54,7 +54,6 @@ export function EventSwitch({
           type="match"
           selected={tab === 'match'}
           isNext={soonest === 'match'}
-          athletes={athletes.length}
           onSelect={() => setTab('match')}
         />
       </div>
@@ -63,7 +62,7 @@ export function EventSwitch({
         <AttendanceBoard
           key={current.event.id}
           event={current.event}
-          athletes={athletes}
+          athletes={current.roster}
           initialAbsent={current.absent}
           userId={userId}
         />
@@ -83,14 +82,12 @@ function EventCard({
   type,
   selected,
   isNext,
-  athletes,
   onSelect,
 }: {
   board: Board
   type: 'training' | 'match'
   selected: boolean
   isNext: boolean
-  athletes: number
   onSelect: () => void
 }) {
   if (!board) {
@@ -104,7 +101,7 @@ function EventCard({
     )
   }
 
-  const { event, absent } = board
+  const { event, absent, roster, teamName } = board
 
   return (
     <button
@@ -120,6 +117,7 @@ function EventCard({
         </span>
 
         <span className="flex flex-wrap gap-2">
+          {teamName && <span className="tag">{teamName}</span>}
           {isNext && <span className="tag fail">Prossimo</span>}
           {/* Lo stato di selezione e' scritto, non solo suggerito dal colore. */}
           {selected && <span className="tag pass">Stai compilando</span>}
@@ -138,7 +136,7 @@ function EventCard({
       </p>
 
       <p className="mt-2 text-sm" style={{ color: 'var(--faint)' }}>
-        {athletes - absent.length} presenti su {athletes}
+        {roster.length - absent.length} presenti su {roster.length}
       </p>
     </button>
   )

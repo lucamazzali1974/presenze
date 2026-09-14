@@ -421,6 +421,19 @@ a:hover {
   white-space: nowrap;
   cursor: pointer;
 }
+/* Il filtro squadra della home e' fatto di link, non di bottoni:
+   la scelta deve restare nell'URL ed essere condivisibile. */
+a.pill {
+  display: inline-flex;
+  align-items: center;
+}
+a.pill:hover {
+  color: var(--text);
+}
+a.pill[data-on='true']:hover {
+  color: var(--bg);
+}
+
 .pill[data-on='true'] {
   background: var(--text);
   border-color: var(--text);

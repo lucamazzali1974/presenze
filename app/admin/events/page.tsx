@@ -1,6 +1,6 @@
 import { EventManager } from '@/components/event-manager'
 import { createClient } from '@/utils/supabase/server'
-import type { Event } from '@/lib/types'
+import type { Event, Team } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,7 +8,7 @@ export default async function AdminEventsPage() {
   const supabase = await createClient()
   const now = new Date().toISOString()
 
-  const [{ data: upcoming }, { data: past }] = await Promise.all([
+  const [{ data: upcoming }, { data: past }, { data: teams }] = await Promise.all([
     supabase
       .from('events')
       .select('*')
@@ -23,12 +23,14 @@ export default async function AdminEventsPage() {
       .lt('starts_at', now)
       .order('starts_at', { ascending: false })
       .limit(200),
+    supabase.from('teams').select('*').order('name', { ascending: true }),
   ])
 
   return (
     <EventManager
       upcoming={(upcoming ?? []) as Event[]}
       past={(past ?? []) as Event[]}
+      teams={(teams ?? []) as Team[]}
     />
   )
 }

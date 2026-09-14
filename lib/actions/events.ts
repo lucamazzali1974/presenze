@@ -5,6 +5,12 @@ import { createClient } from '@/utils/supabase/server'
 import { requireAdmin, requireProfile } from '@/lib/auth'
 import { localToISO } from '@/lib/format'
 
+/** Stringa vuota dal <select> = "tutta la societa'", cioe' team_id null. */
+function readTeamId(formData: FormData) {
+  const raw = String(formData.get('team_id') ?? '').trim()
+  return raw || null
+}
+
 export async function createEvent(formData: FormData) {
   await requireAdmin()
   const supabase = await createClient()
@@ -24,6 +30,7 @@ export async function createEvent(formData: FormData) {
       starts_at: localToISO(date, time),
       title: title || null,
       location: location || null,
+      team_id: readTeamId(formData),
     })
     .select('id')
 
@@ -36,6 +43,7 @@ export async function createEvent(formData: FormData) {
   }
 
   revalidatePath('/admin/events')
+  revalidatePath('/admin/teams')
   revalidatePath('/')
   return { ok: true }
 }
@@ -69,6 +77,7 @@ export async function createRecurringEvents(formData: FormData) {
     p_to: to,
     p_title: title || null,
     p_location: location || null,
+    p_team_id: readTeamId(formData),
   })
 
   if (error) return { error: error.message }
@@ -97,6 +106,7 @@ export async function updateEvent(id: string, formData: FormData) {
       starts_at: localToISO(date, time),
       title: title || null,
       location: location || null,
+      team_id: readTeamId(formData),
     })
     .eq('id', id)
     .select('id')

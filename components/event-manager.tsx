@@ -16,7 +16,7 @@ import {
   monthLabel,
   toLocalInputs,
 } from '@/lib/format'
-import type { Event } from '@/lib/types'
+import type { Event, Team } from '@/lib/types'
 
 const WEEKDAYS = [
   [1, 'Lun'],
@@ -31,20 +31,26 @@ const WEEKDAYS = [
 export function EventManager({
   upcoming,
   past,
+  teams,
 }: {
   upcoming: Event[]
   past: Event[]
+  teams: Team[]
 }) {
   const [showForm, setShowForm] = useState(false)
   const [mode, setMode] = useState<'single' | 'recurring'>('single')
   const [when, setWhen] = useState<'upcoming' | 'past'>('upcoming')
   const [filter, setFilter] = useState<'all' | 'training' | 'match'>('all')
+  const [team, setTeam] = useState<string>('all')
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const singleRef = useRef<HTMLFormElement>(null)
   const recurringRef = useRef<HTMLFormElement>(null)
   const [isPending, startTransition] = useTransition()
+
+  const teamName = new Map(teams.map((t) => [t.id, t.name]))
+  const activeTeams = teams.filter((t) => t.active)
 
   function submitSingle(formData: FormData) {
     startTransition(async () => {
@@ -71,10 +77,13 @@ export function EventManager({
 
   const list = source.filter((e) => {
     if (filter !== 'all' && e.type !== filter) return false
+    // "Senza squadra" e' un filtro a se': quegli eventi valgono per tutti.
+    if (team === 'none' && e.team_id !== null) return false
+    if (team !== 'all' && team !== 'none' && e.team_id !== team) return false
     if (!needle) return true
-    return `${e.title ?? ''} ${e.location ?? ''} ${EVENT_LABEL[e.type]} ${dayStamp(
-      e.starts_at
-    )}`
+    return `${e.title ?? ''} ${e.location ?? ''} ${EVENT_LABEL[e.type]} ${
+      e.team_id ? (teamName.get(e.team_id) ?? '') : ''
+    } ${dayStamp(e.starts_at)}`
       .toLowerCase()
       .includes(needle)
   })
@@ -144,6 +153,17 @@ export function EventManager({
                   <input name="location" placeholder="es. Campo comunale" />
                 </label>
                 <label className="field">
+                  <span>Squadra</span>
+                  <select name="team_id" defaultValue="">
+                    <option value="">Tutta la societ&agrave;</option>
+                    {activeTeams.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
                   <span>Data</span>
                   <input name="date" type="date" required />
                 </label>
@@ -174,6 +194,17 @@ export function EventManager({
                 <label className="field">
                   <span>Luogo</span>
                   <input name="location" />
+                </label>
+                <label className="field">
+                  <span>Squadra</span>
+                  <select name="team_id" defaultValue="">
+                    <option value="">Tutta la societ&agrave;</option>
+                    {activeTeams.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label className="field">
                   <span>Ora</span>
@@ -267,6 +298,28 @@ export function EventManager({
         ))}
       </div>
 
+      {teams.length > 0 && (
+        <div className="filters mb-3">
+          {(
+            [
+              ['all', 'Tutte le squadre'],
+              ...teams.map((t) => [t.id, t.name] as [string, string]),
+              ['none', 'Senza squadra'],
+            ] as [string, string][]
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className="pill"
+              data-on={team === key}
+              onClick={() => setTeam(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="mb-4">
         <input
           className="search"
@@ -287,6 +340,7 @@ export function EventManager({
                 {editing === e.id ? (
                   <EditForm
                     event={e}
+                    teams={teams}
                     pending={isPending}
                     error={editing === e.id ? error : null}
                     onCancel={() => {
@@ -315,6 +369,11 @@ export function EventManager({
                         {e.id === nextId && <span className="tag fail">Prossimo</span>}
                         <span className={e.type === 'match' ? 'tag info' : 'tag'}>
                           {EVENT_LABEL[e.type]}
+                        </span>
+                        <span className="tag">
+                          {e.team_id
+                            ? (teamName.get(e.team_id) ?? 'Squadra rimossa')
+                            : 'Tutta la società'}
                         </span>
                         <span className={e.closed_at ? 'tag pass' : 'tag warn'}>
                           {e.closed_at ? 'Chiuso' : 'Da chiudere'}
@@ -414,12 +473,14 @@ export function EventManager({
 
 function EditForm({
   event,
+  teams,
   pending,
   error,
   onSubmit,
   onCancel,
 }: {
   event: Event
+  teams: Team[]
   pending: boolean
   error?: string | null
   onSubmit: (formData: FormData) => void
@@ -440,6 +501,18 @@ function EditForm({
         <label className="field">
           <span>Luogo</span>
           <input name="location" defaultValue={event.location ?? ''} />
+        </label>
+        <label className="field">
+          <span>Squadra</span>
+          <select name="team_id" defaultValue={event.team_id ?? ''}>
+            <option value="">Tutta la societ&agrave;</option>
+            {teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+                {t.active ? '' : ' (non attiva)'}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="field">
           <span>Data</span>
