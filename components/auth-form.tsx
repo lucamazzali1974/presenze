@@ -32,7 +32,7 @@ export function AuthForm({ mode }: { mode: 'signin' | 'signup' }) {
         <p className="sub">
           {isSignup
             ? 'Dopo la registrazione un responsabile deve attivare il tuo account.'
-            : 'Appello di allenamenti e partite.'}
+            : 'Giocatori col soprannome, staff con l’email.'}
         </p>
 
         <form action={submit} className="panel mt-7 grid gap-4 p-5">
@@ -43,10 +43,24 @@ export function AuthForm({ mode }: { mode: 'signin' | 'signup' }) {
             </label>
           )}
 
-          <label className="field">
-            <span>Email</span>
-            <input name="email" type="email" autoComplete="email" required />
-          </label>
+          {isSignup ? (
+            <label className="field">
+              <span>Email</span>
+              <input name="email" type="email" autoComplete="email" required />
+            </label>
+          ) : (
+            <label className="field">
+              <span>Soprannome o email</span>
+              <input
+                name="identifier"
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                required
+              />
+            </label>
+          )}
 
           <label className="field">
             <span>Password</span>
@@ -72,7 +86,8 @@ export function AuthForm({ mode }: { mode: 'signin' | 'signup' }) {
             </>
           ) : (
             <>
-              Prima volta? <Link href="/register">Registrati</Link>
+              Sei un giocatore e non hai le credenziali? Chiedile
+              all’allenatore. Staff: <Link href="/register">registrati</Link>.
             </>
           )}
         </p>

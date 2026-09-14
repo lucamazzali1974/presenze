@@ -8,18 +8,30 @@ import {
   updateAthlete,
 } from '@/lib/actions/athletes'
 import { AthleteName } from '@/components/athlete-name'
+import {
+  createAthleteAccount,
+  removeAthleteAccount,
+  resetAthletePassword,
+} from '@/lib/actions/athlete-accounts'
 import { formatDate, fullName, todayInput } from '@/lib/format'
-import type { Athlete } from '@/lib/types'
+import { emailToUsername, suggestUsername } from '@/lib/username'
+import type { Athlete, Profile } from '@/lib/types'
 
 export function AthleteManager({
   athletes,
   teamsOf = {},
   hasTeams = false,
+  accountOf = {},
+  canCreateAccounts = false,
   isAdmin,
 }: {
   athletes: Athlete[]
   teamsOf?: Record<string, string[]>
   hasTeams?: boolean
+  /** L'account collegato a ogni giocatore, per chi puo' vederlo. */
+  accountOf?: Record<string, Profile>
+  /** Serve SUPABASE_SECRET_KEY: senza, gli accessi non si creano. */
+  canCreateAccounts?: boolean
   isAdmin: boolean
 }) {
   const formRef = useRef<HTMLFormElement>(null)
@@ -27,6 +39,8 @@ export function AthleteManager({
   const [query, setQuery] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
+  const [account, setAccount] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   function submitCreate(formData: FormData) {
@@ -104,6 +118,12 @@ export function AthleteManager({
       )}
 
       {error && <p className="alert mb-4">{error}</p>}
+
+      {notice && (
+        <p className="panel mb-4 p-4 text-sm" style={{ color: 'var(--color-text)' }}>
+          {notice}
+        </p>
+      )}
 
       {athletes.length > 8 && (
         <div className="mb-4">
@@ -202,6 +222,25 @@ export function AthleteManager({
                 )}
 
                 {isAdmin && (
+                  <p className="mt-2 flex flex-wrap items-center gap-2">
+                    {accountOf[a.id] ? (
+                      <>
+                        <span className="tag pass">
+                          Accede come {emailToUsername(accountOf[a.id].email)}
+                        </span>
+                        {accountOf[a.id].status !== 'active' && (
+                          <span className="tag warn">
+                            Accesso {accountOf[a.id].status === 'blocked' ? 'bloccato' : 'in attesa'}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="tag">Nessun accesso</span>
+                    )}
+                  </p>
+                )}
+
+                {isAdmin && (
                   <div className="row-actions">
                     <button
                       type="button"
@@ -209,6 +248,21 @@ export function AthleteManager({
                       onClick={() => setEditing(a.id)}
                     >
                       Modifica
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => {
+                        setError(null)
+                        setNotice(null)
+                        setAccount(account === a.id ? null : a.id)
+                      }}
+                    >
+                      {account === a.id
+                        ? 'Chiudi accesso'
+                        : accountOf[a.id]
+                          ? 'Gestisci accesso'
+                          : 'Crea accesso'}
                     </button>
                     <button
                       type="button"
@@ -242,6 +296,49 @@ export function AthleteManager({
                     </button>
                   </div>
                 )}
+
+                {isAdmin && account === a.id && (
+                  <AccountPanel
+                    athlete={a}
+                    account={accountOf[a.id] ?? null}
+                    enabled={canCreateAccounts}
+                    pending={isPending}
+                    onCreate={(formData) =>
+                      startTransition(async () => {
+                        const res = await createAthleteAccount(a.id, formData)
+                        if (res?.error) return setError(res.error)
+                        setError(null)
+                        setNotice(
+                          `Accesso creato: ${fullName(a)} entra con «${res.username}» e la password che hai scelto.`
+                        )
+                        setAccount(null)
+                      })
+                    }
+                    onReset={(formData) =>
+                      startTransition(async () => {
+                        const id = accountOf[a.id]?.id
+                        if (!id) return
+                        const res = await resetAthletePassword(id, formData)
+                        if (res?.error) return setError(res.error)
+                        setError(null)
+                        setNotice('Password aggiornata. Comunicagliela tu.')
+                      })
+                    }
+                    onRemove={() =>
+                      startTransition(async () => {
+                        const id = accountOf[a.id]?.id
+                        if (!id) return
+                        const res = await removeAthleteAccount(id)
+                        if (res?.error) return setError(res.error)
+                        setError(null)
+                        setNotice(
+                          `Accesso rimosso. ${fullName(a)} resta in rosa: da ora lo segni tu.`
+                        )
+                        setAccount(null)
+                      })
+                    }
+                  />
+                )}
               </>
             )}
           </li>
@@ -258,5 +355,117 @@ export function AthleteManager({
         )}
       </ul>
     </main>
+  )
+}
+
+/**
+ * Il pannello dove l'admin crea l'accesso di un giocatore: nome utente
+ * (proposto dal soprannome) e password, da comunicare a voce. L'app non
+ * manda email — e infatti l'indirizzo che sta sotto e' finto.
+ */
+function AccountPanel({
+  athlete,
+  account,
+  enabled,
+  pending,
+  onCreate,
+  onReset,
+  onRemove,
+}: {
+  athlete: Athlete
+  account: Profile | null
+  enabled: boolean
+  pending: boolean
+  onCreate: (formData: FormData) => void
+  onReset: (formData: FormData) => void
+  onRemove: () => void
+}) {
+  if (!enabled) {
+    return (
+      <div className="mt-4 panel p-4">
+        <p className="text-sm" style={{ color: 'var(--color-muted)' }}>
+          Per creare accessi serve <code>SUPABASE_SECRET_KEY</code> tra le
+          variabili d&rsquo;ambiente. Senza, gli accessi esistenti funzionano ma
+          non se ne creano di nuovi.
+        </p>
+      </div>
+    )
+  }
+
+  if (account) {
+    return (
+      <div className="mt-4 panel p-4">
+        <p className="mini">Accesso di {fullName(athlete)}</p>
+
+        <p className="mt-2 text-sm" style={{ color: 'var(--color-muted)' }}>
+          Entra da <strong>/login</strong> scrivendo{' '}
+          <strong>{emailToUsername(account.email)}</strong> nel campo
+          &laquo;Soprannome o email&raquo;.
+        </p>
+
+        <form action={onReset} className="mt-4">
+          <label className="field">
+            <span>Nuova password</span>
+            <input name="password" type="text" minLength={8} required />
+          </label>
+
+          <div className="row-actions">
+            <button type="submit" className="btn btn-sm btn-primary" disabled={pending}>
+              Cambia password
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-danger"
+              disabled={pending}
+              onClick={() => {
+                if (
+                  confirm(
+                    `Rimuovere l'accesso di ${fullName(athlete)}? Resta in rosa con tutte le sue presenze, ma non entra più e lo segni tu.`
+                  )
+                ) {
+                  onRemove()
+                }
+              }}
+            >
+              Rimuovi accesso
+            </button>
+          </div>
+        </form>
+      </div>
+    )
+  }
+
+  return (
+    <form action={onCreate} className="mt-4 panel p-4">
+      <p className="mini">Nuovo accesso per {fullName(athlete)}</p>
+
+      <div className="grid-2 mt-3">
+        <label className="field">
+          <span>Nome utente</span>
+          <input
+            name="username"
+            defaultValue={suggestUsername(athlete)}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            required
+          />
+        </label>
+        <label className="field">
+          <span>Password provvisoria</span>
+          <input name="password" type="text" minLength={8} required />
+        </label>
+      </div>
+
+      <p className="mt-3 text-sm" style={{ color: 'var(--color-faint)' }}>
+        Minuscole, numeri e punti: &laquo;Ciccio Rossi&raquo; diventa
+        &laquo;ciccio.rossi&raquo;. Comunica tu nome utente e password, l&rsquo;app
+        non manda email. Nasce già attivo, con accesso limitato a sé stesso.
+      </p>
+
+      <button type="submit" className="btn btn-primary mt-4" disabled={pending}>
+        Crea accesso
+      </button>
+    </form>
   )
 }

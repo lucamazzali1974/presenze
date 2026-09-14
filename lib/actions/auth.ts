@@ -3,16 +3,25 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
+import { usernameToEmail } from '@/lib/username'
 
 export async function signIn(formData: FormData) {
   const supabase = await createClient()
 
+  /*
+   * Un solo campo per due tipi di accesso. Lo staff entra con l'email,
+   * i giocatori col soprannome: se non c'e' la chiocciola, l'indirizzo
+   * si ricostruisce dal soprannome (vedi lib/username.ts).
+   */
+  const identifier = String(formData.get('identifier') ?? '').trim()
+  const email = identifier.includes('@') ? identifier : usernameToEmail(identifier)
+
   const { error } = await supabase.auth.signInWithPassword({
-    email: String(formData.get('email') ?? '').trim(),
+    email,
     password: String(formData.get('password') ?? ''),
   })
 
-  if (error) return { error: 'Email o password non corretti.' }
+  if (error) return { error: 'Soprannome, email o password non corretti.' }
 
   revalidatePath('/', 'layout')
   redirect('/')

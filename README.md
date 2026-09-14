@@ -62,7 +62,8 @@ creano dall'interno.
 | Percorso | Chi | Cosa |
 |---|---|---|
 | `/` | tutti | appello del prossimo allenamento e della prossima partita |
-| `/atleti` | tutti | rosa completa; form e modifiche solo per admin |
+| `/atleti` | tutti | rosa completa; form, modifiche e accessi solo per admin |
+| `/calendario` | non admin | eventi in programma in sola lettura, con link all'appello |
 | `/stats` | tutti | percentuali per giocatore, allenamenti e partite separati |
 | `/events/[id]` | tutti | appello di un evento specifico, anche passato |
 | `/admin/events` | admin | calendario, date singole e ricorrenti |
@@ -110,6 +111,31 @@ restano, e i suoi eventi tornano `team_id` nullo, cioe' validi per tutti.
 Gli **archivi** restano trasversali: si archivia un periodo, non una squadra,
 e la fotografia resta nella forma aggregata di prima. Per questo il pulsante
 "Archivia un periodo" compare solo con il filtro su "Tutte le squadre".
+
+## Accesso col soprannome
+
+Supabase Auth autentica con email o telefono, non con un nome utente: non
+c'e' modo di aggirarlo. Il giro e' in `lib/username.ts`: al soprannome si
+appiccica un dominio finto (`ATHLETE_EMAIL_DOMAIN`) e l'indirizzo che ne
+esce fa da nome utente. "Ciccio Rossi" diventa `ciccio.rossi`, cioe'
+`ciccio.rossi@atleti.presenze.app`.
+
+Nessuna email viene mai spedita a quegli indirizzi, quindi **la conferma
+email dev'essere spenta** (Authentication > Sign In / Providers > Email >
+Confirm email). Il login ha un solo campo: se contiene una chiocciola e'
+un'email, altrimenti e' un soprannome e l'indirizzo si ricostruisce.
+
+`ATHLETE_EMAIL_DOMAIN` **non si cambia dopo aver creato degli accessi**:
+l'indirizzo si ricostruisce a ogni login, quindi cambiarlo li rende tutti
+inutilizzabili.
+
+L'admin crea l'accesso da `/atleti`, sul giocatore, con "Crea accesso":
+nome utente (proposto dal soprannome) e password provvisoria, da
+comunicare a voce. Da li' si cambia anche la password o si rimuove
+l'accesso — rimuoverlo non tocca ne' il giocatore ne' le sue presenze,
+`athletes.profile_id` e' `on delete set null`. Serve
+`SUPABASE_SECRET_KEY`: senza, il pannello lo dice e gli accessi esistenti
+continuano a funzionare.
 
 ## Accesso degli atleti
 

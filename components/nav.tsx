@@ -9,11 +9,13 @@ import type { Profile } from '@/lib/types'
 export function Nav({ profile }: { profile: Profile }) {
   const pathname = usePathname()
 
-  const links: [string, string][] = [
-    ['/', 'Appello'],
-    ['/atleti', 'Atleti'],
-    ['/stats', 'Percentuali'],
-  ]
+  const links: [string, string][] = [['/', 'Appello']]
+
+  // Gli admin hanno il calendario completo, con le modifiche, sotto
+  // /admin/events: per loro questa voce sarebbe un doppione.
+  if (profile.role !== 'admin') links.push(['/calendario', 'Calendario'])
+
+  links.push(['/atleti', 'Atleti'], ['/stats', 'Percentuali'])
 
   // Gli archivi contengono le percentuali di tutti: la RLS li nega
   // all'atleta, quindi non ha senso mostrargli la voce.
