@@ -79,6 +79,13 @@ export default async function StatsPage({
     byAthlete.set(s.athlete_id, [...(byAthlete.get(s.athlete_id) ?? []), s])
   }
 
+  // Al giocatore si mostra solo la sua squadra: le altre non lo riguardano.
+  const shownTeams = staff
+    ? teams
+    : teams.filter((t) =>
+        members.some((m) => m.team_id === t.id && m.athlete_id === me?.id)
+      )
+
   const rows: StatsRow[] = listed
     .map((a) => {
       const mine = forTeam(byAthlete.get(a.id) ?? [], team)
@@ -111,7 +118,7 @@ export default async function StatsPage({
       <StatsView
         rows={rows}
         closed={closed}
-        teams={teams}
+        teams={shownTeams}
         selectedTeam={team}
         loadError={error}
         isAdmin={profile.role === 'admin'}

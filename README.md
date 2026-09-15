@@ -174,6 +174,34 @@ interroga l'API con la chiave pubblica:
 `is_active()` resta "qualunque utente attivo" e regola le letture;
 `is_staff()` e' il nuovo nome di chi fa l'appello di tutti.
 
+## Partite
+
+Oltre a data, ora e luogo, una partita ha **squadra avversaria**
+(`events.opponent`) e **ora di ritrovo** (`events.meet_at`). I due campi
+compaiono nel form solo scegliendo "Partita", e cambiando tipo a un
+evento gia' esistente si azzerano: su un allenamento non vogliono dire
+niente e lasciarli appiccicati confonderebbe.
+
+`meet_at` e' un timestamptz, non una semplice ora: si formatta con gli
+stessi strumenti di `starts_at` e non perde il fuso.
+
+In calendario le partite si riconoscono dal filo blu a sinistra, e i
+loro dati stanno in una scheda (`.facts`) invece che in una riga di
+testo con i punti: data, ritrovo, inizio, avversario e campo, ognuno con
+la sua etichetta.
+
+## Utenti
+
+L'elenco e' raggruppato: prima lo **Staff** (admin e allenatori, che non
+appartengono a una squadra), poi una sezione per squadra con i suoi
+giocatori, in fondo chi non e' assegnato. Dentro ogni gruppo c'e' una
+sottosezione per ruolo, e ogni sottosezione mostra al massimo 30 righe
+con un "mostra gli altri". La ricerca compare oltre le 30 righe totali e
+scavalca i tagli.
+
+Le squadre di un account arrivano dalla sua scheda atleta: i profili non
+hanno una squadra propria.
+
 ## Archivi
 
 Archiviare un periodo (dalla pagina Percentuali, solo admin) fa tre cose:
@@ -333,6 +361,7 @@ supabase/migration-004-orari.sql       audit degli orari salvati col fuso sbagli
 supabase/migration-005-squadre.sql     squadre e appartenenza multipla
 supabase/migration-006-accesso-atleti.sql  ruolo athlete, RLS per atleta
 supabase/migration-007-notifiche.sql   iscrizioni push e registro invii
+supabase/migration-008-partite.sql     avversario e ritrovo, eventi alla squadra
 ```
 
 ## Requisiti

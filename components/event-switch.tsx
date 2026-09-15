@@ -130,11 +130,24 @@ function EventCard({
         </span>
       </span>
 
+      {event.opponent && (
+        <p
+          className="mt-2 text-lg"
+          style={{ color: 'var(--text)', fontWeight: 500 }}
+        >
+          vs {event.opponent}
+        </p>
+      )}
+
       <p
-        className="mt-2 text-lg"
-        style={{ color: 'var(--text)', fontWeight: 500 }}
+        className={event.opponent ? 'mt-0.5 text-sm' : 'mt-2 text-lg'}
+        style={{
+          color: event.opponent ? 'var(--muted)' : 'var(--text)',
+          fontWeight: event.opponent ? 400 : 500,
+        }}
       >
         {dayStamp(event.starts_at)} · {formatEventTime(event.starts_at)}
+        {event.meet_at && ` · ritrovo ${formatEventTime(event.meet_at)}`}
       </p>
 
       <p className="mt-0.5 text-sm" style={{ color: 'var(--muted)' }}>

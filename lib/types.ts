@@ -44,6 +44,9 @@ export type Event = {
   archive_id: string | null
   /** null = evento di tutta la societa', vale per chiunque. */
   team_id: string | null
+  /** Solo per le partite: avversario e ora di ritrovo. */
+  opponent: string | null
+  meet_at: string | null
 }
 
 export type Absence = {

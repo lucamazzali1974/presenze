@@ -499,6 +499,44 @@ a.pill[data-on='true']:hover {
 }
 
 /* Scheda evento selezionata: barra piena in alto, non una sfumatura. */
+/* ── partite ──────────────────────────────────────────────
+   Una partita non e' un allenamento: si vede dal filo blu a
+   sinistra prima ancora di leggere l'etichetta. */
+.row[data-kind='match'] {
+  box-shadow: inset 3px 0 0 0 var(--blue);
+}
+
+/* I dati della partita: etichetta piccola sopra, valore leggibile
+   sotto. Si impaginano da soli, dalle tre colonne del desktop alla
+   singola del telefono. */
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 12px 20px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.facts > div {
+  min-width: 0;
+}
+.facts dt {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.facts dd {
+  margin: 3px 0 0;
+  font-size: 15px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.facts dd.strong {
+  font-size: 17px;
+  font-weight: 500;
+}
+
 .evt {
   position: relative;
   text-align: left;

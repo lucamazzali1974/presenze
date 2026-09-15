@@ -42,6 +42,8 @@ export function EventManager({
   const [when, setWhen] = useState<'upcoming' | 'past'>('upcoming')
   const [filter, setFilter] = useState<'all' | 'training' | 'match'>('all')
   const [team, setTeam] = useState<string>('all')
+  // Serve a mostrare avversario e ritrovo solo quando si crea una partita.
+  const [newType, setNewType] = useState<'training' | 'match'>('training')
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -143,7 +145,13 @@ export function EventManager({
               <div className="grid-2">
                 <label className="field">
                   <span>Tipo</span>
-                  <select name="type">
+                  <select
+                    name="type"
+                    value={newType}
+                    onChange={(e) =>
+                      setNewType(e.target.value as 'training' | 'match')
+                    }
+                  >
                     <option value="training">Allenamento</option>
                     <option value="match">Partita</option>
                   </select>
@@ -175,6 +183,19 @@ export function EventManager({
                   <span>Titolo</span>
                   <input name="title" placeholder="facoltativo" />
                 </label>
+
+                {newType === 'match' && (
+                  <>
+                    <label className="field">
+                      <span>Squadra avversaria</span>
+                      <input name="opponent" placeholder="es. Rugby Monza" />
+                    </label>
+                    <label className="field">
+                      <span>Ora di ritrovo</span>
+                      <input name="meet_time" type="time" />
+                    </label>
+                  </>
+                )}
               </div>
 
               <button type="submit" className="btn btn-primary mt-5" disabled={isPending}>
@@ -336,7 +357,7 @@ export function EventManager({
 
           <ul className="panel rows">
             {group.events.map((e) => (
-              <li key={e.id} className="row">
+              <li key={e.id} className="row" data-kind={e.type}>
                 {editing === e.id ? (
                   <EditForm
                     event={e}
@@ -362,7 +383,10 @@ export function EventManager({
                       <span
                         style={{ color: 'var(--color-text)', fontWeight: 500 }}
                       >
-                        {e.title || EVENT_LABEL[e.type]}
+                        {e.title ||
+                          (e.opponent
+                            ? `vs ${e.opponent}`
+                            : EVENT_LABEL[e.type])}
                       </span>
 
                       <span className="flex flex-wrap gap-2">
@@ -385,6 +409,12 @@ export function EventManager({
                       <span style={{ color: 'var(--color-par)' }}>
                         {dayStamp(e.starts_at)} · {formatEventTime(e.starts_at)}
                       </span>
+                      {e.meet_at && (
+                        <span style={{ color: 'var(--color-muted)' }}>
+                          {' '}
+                          · ritrovo {formatEventTime(e.meet_at)}
+                        </span>
+                      )}
                       {e.location && (
                         <span style={{ color: 'var(--color-muted)' }}>
                           {' '}
@@ -487,13 +517,19 @@ function EditForm({
   onCancel: () => void
 }) {
   const { date, time } = toLocalInputs(event.starts_at)
+  const meet = event.meet_at ? toLocalInputs(event.meet_at).time : ''
+  const [type, setType] = useState<'training' | 'match'>(event.type)
 
   return (
     <form action={onSubmit}>
       <div className="grid-2">
         <label className="field">
           <span>Tipo</span>
-          <select name="type" defaultValue={event.type}>
+          <select
+            name="type"
+            value={type}
+            onChange={(e) => setType(e.target.value as 'training' | 'match')}
+          >
             <option value="training">Allenamento</option>
             <option value="match">Partita</option>
           </select>
@@ -526,6 +562,23 @@ function EditForm({
           <span>Titolo</span>
           <input name="title" defaultValue={event.title ?? ''} />
         </label>
+
+        {type === 'match' && (
+          <>
+            <label className="field">
+              <span>Squadra avversaria</span>
+              <input
+                name="opponent"
+                defaultValue={event.opponent ?? ''}
+                placeholder="es. Rugby Monza"
+              />
+            </label>
+            <label className="field">
+              <span>Ora di ritrovo</span>
+              <input name="meet_time" type="time" defaultValue={meet} />
+            </label>
+          </>
+        )}
       </div>
 
       {error && <p className="alert mt-3">{error}</p>}

@@ -85,7 +85,17 @@ export function StatsView({
             : `${closed.total} ${closed.total === 1 ? 'appello chiuso' : 'appelli chiusi'} in archivio corrente · ${closed.training} allenamenti · ${closed.match} partite`}
         </p>
 
-        {teams.length > 0 && (
+        {selfOnly && teams.length > 0 && (
+          <p className="mt-4 flex flex-wrap gap-2">
+            {teams.map((t) => (
+              <span key={t.id} className="pill" data-on="true">
+                {t.name}
+              </span>
+            ))}
+          </p>
+        )}
+
+        {!selfOnly && teams.length > 0 && (
           <div className="filters mt-4">
             <Link href="/stats" className="pill" data-on={selectedTeam === null} scroll={false}>
               Tutte le squadre
@@ -104,6 +114,9 @@ export function StatsView({
           </div>
         )}
 
+        {/* Il giocatore non ha bottoni: il CSV serve a chi gestisce la
+            rosa, non a chi ha una riga sola. */}
+        {!selfOnly && (
         <div className="row-actions mt-5">
           <button
             type="button"
@@ -124,6 +137,7 @@ export function StatsView({
             </button>
           )}
         </div>
+        )}
       </div>
 
       {showArchive && isAdmin && (

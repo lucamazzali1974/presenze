@@ -11,6 +11,23 @@ function readTeamId(formData: FormData) {
   return raw || null
 }
 
+/**
+ * Avversario e ritrovo esistono solo per le partite: su un allenamento
+ * si azzerano, altrimenti cambiando tipo a un evento resterebbero
+ * appiccicati dei dati che non vogliono dire piu' niente.
+ */
+function readMatchFields(formData: FormData, type: string, date: string) {
+  if (type !== 'match') return { opponent: null, meet_at: null }
+
+  const opponent = String(formData.get('opponent') ?? '').trim()
+  const meetTime = String(formData.get('meet_time') ?? '').trim()
+
+  return {
+    opponent: opponent || null,
+    meet_at: meetTime ? localToISO(date, meetTime) : null,
+  }
+}
+
 export async function createEvent(formData: FormData) {
   await requireAdmin()
   const supabase = await createClient()
@@ -31,6 +48,7 @@ export async function createEvent(formData: FormData) {
       title: title || null,
       location: location || null,
       team_id: readTeamId(formData),
+      ...readMatchFields(formData, type, date),
     })
     .select('id')
 
@@ -107,6 +125,7 @@ export async function updateEvent(id: string, formData: FormData) {
       title: title || null,
       location: location || null,
       team_id: readTeamId(formData),
+      ...readMatchFields(formData, type, date),
     })
     .eq('id', id)
     .select('id')

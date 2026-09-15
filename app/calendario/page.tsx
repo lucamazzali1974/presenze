@@ -97,16 +97,27 @@ export default async function CalendarioPage() {
             <ul className="panel rows">
               {group.events.map((e) => {
                 const absent = absences.has(e.id)
+                const isMatch = e.type === 'match'
 
                 return (
-                  <li key={e.id} className="row">
+                  <li key={e.id} className="row" data-kind={e.type}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span style={{ color: 'var(--color-text)', fontWeight: 500 }}>
-                        {e.title || EVENT_LABEL[e.type]}
+                      <span
+                        style={{
+                          color: 'var(--color-text)',
+                          fontWeight: 500,
+                          fontSize: isMatch ? '1.0625rem' : undefined,
+                        }}
+                      >
+                        {isMatch
+                          ? e.opponent
+                            ? `vs ${e.opponent}`
+                            : e.title || 'Partita'
+                          : e.title || EVENT_LABEL[e.type]}
                       </span>
 
                       <span className="flex flex-wrap gap-2">
-                        <span className={e.type === 'match' ? 'tag info' : 'tag'}>
+                        <span className={isMatch ? 'tag info' : 'tag'}>
                           {EVENT_LABEL[e.type]}
                         </span>
                         {e.team_id && (
@@ -127,17 +138,50 @@ export default async function CalendarioPage() {
                       </span>
                     </div>
 
-                    <p className="mt-1.5 text-sm">
-                      <span style={{ color: 'var(--color-par)' }}>
-                        {dayStamp(e.starts_at)} · {formatEventTime(e.starts_at)}
-                      </span>
-                      {e.location && (
-                        <span style={{ color: 'var(--color-muted)' }}>
-                          {' '}
-                          · {e.location}
+                    {isMatch ? (
+                      /* Per una partita i dati sono tanti e contano tutti:
+                         meglio una scheda che una riga di testo con i punti. */
+                      <dl className="facts">
+                        <div>
+                          <dt>Data</dt>
+                          <dd className="strong">{dayStamp(e.starts_at)}</dd>
+                        </div>
+                        {e.meet_at && (
+                          <div>
+                            <dt>Ritrovo</dt>
+                            <dd className="strong">{formatEventTime(e.meet_at)}</dd>
+                          </div>
+                        )}
+                        <div>
+                          <dt>Inizio</dt>
+                          <dd className="strong">{formatEventTime(e.starts_at)}</dd>
+                        </div>
+                        {e.opponent && (
+                          <div>
+                            <dt>Avversario</dt>
+                            <dd>{e.opponent}</dd>
+                          </div>
+                        )}
+                        {e.location && (
+                          <div>
+                            <dt>Campo</dt>
+                            <dd>{e.location}</dd>
+                          </div>
+                        )}
+                      </dl>
+                    ) : (
+                      <p className="mt-1.5 text-sm">
+                        <span style={{ color: 'var(--color-par)' }}>
+                          {dayStamp(e.starts_at)} · {formatEventTime(e.starts_at)}
                         </span>
-                      )}
-                    </p>
+                        {e.location && (
+                          <span style={{ color: 'var(--color-muted)' }}>
+                            {' '}
+                            · {e.location}
+                          </span>
+                        )}
+                      </p>
+                    )}
 
                     <div className="row-actions">
                       <Link href={`/events/${e.id}`} className="btn btn-sm">

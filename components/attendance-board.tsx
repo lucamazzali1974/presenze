@@ -167,11 +167,14 @@ export function AttendanceBoard({
         </span>
 
         <p className="board-title">
-          {event.title || EVENT_LABEL[event.type]}
+          {event.opponent
+            ? `vs ${event.opponent}`
+            : event.title || EVENT_LABEL[event.type]}
         </p>
 
         <p className="board-meta">
           {dayStamp(event.starts_at)} · {formatEventTime(event.starts_at)}
+          {event.meet_at ? ` · ritrovo ${formatEventTime(event.meet_at)}` : ''}
           {event.location ? ` · ${event.location}` : ''}
         </p>
       </div>
