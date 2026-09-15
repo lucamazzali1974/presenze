@@ -47,6 +47,8 @@ export type Event = {
   /** Solo per le partite: avversario e ora di ritrovo. */
   opponent: string | null
   meet_at: string | null
+  /** location e' il nome del campo, address la via da dare a Maps. */
+  address: string | null
 }
 
 export type Absence = {

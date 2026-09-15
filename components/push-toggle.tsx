@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { removeSubscription, saveSubscription } from '@/lib/actions/push'
+import { Spinner } from '@/components/spinner'
 
 /** La chiave VAPID viaggia in base64url: il browser la vuole come byte. */
 function urlBase64ToUint8Array(base64: string) {
@@ -124,7 +125,7 @@ export function PushToggle({ vapidKey }: { vapidKey: string }) {
 
       {state === 'loading' && (
         <p className="mt-3 text-sm" style={{ color: 'var(--color-faint)' }}>
-          Controllo…
+          <Spinner label="Controllo…" />
         </p>
       )}
 
@@ -156,7 +157,7 @@ export function PushToggle({ vapidKey }: { vapidKey: string }) {
           disabled={isPending}
           onClick={enable}
         >
-          Attiva le notifiche
+          {isPending ? <Spinner label="Attivo…" /> : 'Attiva le notifiche'}
         </button>
       )}
 

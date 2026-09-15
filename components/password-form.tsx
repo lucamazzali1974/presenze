@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { changeMyPassword } from '@/lib/actions/auth'
+import { Spinner } from '@/components/spinner'
 
 export function PasswordForm() {
   const [error, setError] = useState<string | null>(null)
@@ -61,7 +62,7 @@ export function PasswordForm() {
       )}
 
       <button type="submit" className="btn btn-primary mt-4" disabled={isPending}>
-        Salva password
+        {isPending ? <Spinner label="Salvo…" /> : 'Salva password'}
       </button>
     </form>
   )

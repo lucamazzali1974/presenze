@@ -5,6 +5,8 @@ import { createClient } from '@/utils/supabase/client'
 import { setEventClosed } from '@/lib/actions/events'
 import { AthleteName } from '@/components/athlete-name'
 import { EVENT_LABEL, dayStamp, formatEventTime, fullName } from '@/lib/format'
+import { mapsUrl } from '@/lib/maps'
+import { Busy, Spinner } from '@/components/spinner'
 import { enqueue, flush, pendingFor } from '@/lib/offline-queue'
 import type { Athlete, Event } from '@/lib/types'
 
@@ -156,6 +158,8 @@ export function AttendanceBoard({
 
   return (
     <section className="panel mt-5">
+      <Busy show={isPending} label="Aggiorno l’appello…" />
+
       {/* Ripete l'evento: sotto la lista dei nomi non si deve mai
           dover risalire per capire cosa si sta compilando. */}
       <div className="board-id">
@@ -177,6 +181,17 @@ export function AttendanceBoard({
           {event.meet_at ? ` · ritrovo ${formatEventTime(event.meet_at)}` : ''}
           {event.location ? ` · ${event.location}` : ''}
         </p>
+
+        {event.type === 'match' && mapsUrl(event.address, event.location) && (
+          <a
+            className="btn btn-sm mt-3"
+            href={mapsUrl(event.address, event.location)!}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Apri in Maps
+          </a>
+        )}
       </div>
 
       <div className="panel-head">
@@ -322,7 +337,13 @@ export function AttendanceBoard({
             disabled={isPending}
             className={closed ? 'btn' : 'btn btn-primary'}
           >
-            {closed ? 'Riapri appello' : 'Chiudi appello'}
+            {isPending ? (
+              <Spinner label="Attendi…" />
+            ) : closed ? (
+              'Riapri appello'
+            ) : (
+              'Chiudi appello'
+            )}
           </button>
         )}
       </div>

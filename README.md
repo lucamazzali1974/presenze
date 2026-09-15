@@ -190,6 +190,42 @@ loro dati stanno in una scheda (`.facts`) invece che in una riga di
 testo con i punti: data, ritrovo, inizio, avversario e campo, ognuno con
 la sua etichetta.
 
+## Indirizzo e Maps
+
+`events.location` e' il nome del campo ("Campo GEAS"), `events.address`
+la via. Sono due cose diverse: una si legge, l'altra si naviga.
+
+Il link usa l'URL universale di Google Maps
+(`maps/search/?api=1&query=...`, vedi `lib/maps.ts`): **niente API key,
+niente SDK, nessun costo**. Su telefono apre l'app di Maps, su desktop
+il sito, e funziona anche se il predefinito e' Apple Mappe. Il
+completamento automatico dell'indirizzo mentre scrivi richiederebbe
+Places Autocomplete, cioe' una chiave Google Cloud con fatturazione
+attiva: non ne vale la pena per un campo che si compila una volta.
+
+## Aggiornamento e attesa
+
+`components/auto-refresh.tsx` chiama `router.refresh()` ogni 5 minuti:
+rifa' il rendering lato server e **lascia intatto lo stato dei
+componenti client** — l'appello a meta' compilazione, i filtri, il testo
+nelle caselle. Con la scheda in secondo piano non fa niente, e riprende
+appena torna visibile aggiornando subito se e' passato il tempo.
+
+Per l'attesa ci sono tre cose distinte:
+
+- `loading.tsx` su ogni rotta, con `PageSkeleton`: durante la
+  navigazione compare la struttura della pagina invece di uno schermo
+  vuoto. Include una barra in alto finta, se no il contenuto salterebbe
+- `<Busy>` (`components/spinner.tsx`): la pillola in alto che compare
+  durante salvataggi e cancellazioni. E' `position: fixed`, quindi non
+  sposta niente sotto le dita
+- Lo `<Spinner>` dentro i bottoni che avviano un'operazione lunga
+
+La home prende le assenze **annidate** nella query degli eventi
+(`select('*, absences(...)')`) invece che con una seconda chiamata: due
+giri di rete in meno a ogni apertura, che col segnale del campo si
+sentono.
+
 ## Utenti
 
 L'elenco e' raggruppato: prima lo **Staff** (admin e allenatori, che non
@@ -362,6 +398,7 @@ supabase/migration-005-squadre.sql     squadre e appartenenza multipla
 supabase/migration-006-accesso-atleti.sql  ruolo athlete, RLS per atleta
 supabase/migration-007-notifiche.sql   iscrizioni push e registro invii
 supabase/migration-008-partite.sql     avversario e ritrovo, eventi alla squadra
+supabase/migration-009-indirizzo.sql   indirizzo del campo per Maps
 ```
 
 ## Requisiti

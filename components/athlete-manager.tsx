@@ -16,6 +16,7 @@ import {
 import { formatDate, fullName, todayInput } from '@/lib/format'
 import { emailToUsername, suggestUsername } from '@/lib/username'
 import type { Athlete, Profile } from '@/lib/types'
+import { Busy } from '@/components/spinner'
 
 export function AthleteManager({
   athletes,
@@ -66,6 +67,8 @@ export function AthleteManager({
 
   return (
     <main className="wrap pb-16">
+      <Busy show={isPending} />
+
       <div className="page-head">
         <p className="eyebrow">// Rosa</p>
         <h1 className="h1">Atleti</h1>

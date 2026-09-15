@@ -7,6 +7,7 @@ import { AthleteName } from '@/components/athlete-name'
 import { download, slugDate, statsCsv } from '@/lib/csv'
 import { formatDate } from '@/lib/format'
 import type { Athlete, AttendanceStat, Team } from '@/lib/types'
+import { Busy } from '@/components/spinner'
 
 export type StatsRow = {
   id: string
@@ -76,6 +77,8 @@ export function StatsView({
 
   return (
     <main className="wrap pb-16">
+      <Busy show={isPending} />
+
       <div className="page-head">
         <p className="eyebrow">// Statistiche</p>
         <h1 className="h1">{selfOnly ? 'Le tue percentuali' : 'Percentuali'}</h1>

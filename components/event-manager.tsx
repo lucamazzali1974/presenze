@@ -17,6 +17,7 @@ import {
   toLocalInputs,
 } from '@/lib/format'
 import type { Event, Team } from '@/lib/types'
+import { Busy } from '@/components/spinner'
 
 const WEEKDAYS = [
   [1, 'Lun'],
@@ -103,6 +104,8 @@ export function EventManager({
 
   return (
     <main className="wrap pb-16">
+      <Busy show={isPending} />
+
       <div className="page-head">
         <p className="eyebrow">// Calendario</p>
         <h1 className="h1">Allenamenti e partite</h1>
@@ -193,6 +196,13 @@ export function EventManager({
                     <label className="field">
                       <span>Ora di ritrovo</span>
                       <input name="meet_time" type="time" />
+                    </label>
+                    <label className="field">
+                      <span>Indirizzo del campo</span>
+                      <input
+                        name="address"
+                        placeholder="es. Via Milano 12, Sesto San Giovanni"
+                      />
                     </label>
                   </>
                 )}
@@ -576,6 +586,14 @@ function EditForm({
             <label className="field">
               <span>Ora di ritrovo</span>
               <input name="meet_time" type="time" defaultValue={meet} />
+            </label>
+            <label className="field">
+              <span>Indirizzo del campo</span>
+              <input
+                name="address"
+                defaultValue={event.address ?? ''}
+                placeholder="es. Via Milano 12, Sesto San Giovanni"
+              />
             </label>
           </>
         )}

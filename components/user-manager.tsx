@@ -11,6 +11,7 @@ import {
 import { linkAthleteProfile } from '@/lib/actions/athletes'
 import { formatShort, fullName } from '@/lib/format'
 import type { Athlete, Profile, Team } from '@/lib/types'
+import { Busy } from '@/components/spinner'
 
 const STATUS_LABEL: Record<Profile['status'], string> = {
   pending: 'In attesa',
@@ -138,6 +139,8 @@ export function UserManager({
 
   return (
     <main className="wrap pb-16">
+      <Busy show={isPending} />
+
       <div className="page-head">
         <p className="eyebrow">// Accessi</p>
         <h1 className="h1">Utenti</h1>

@@ -60,7 +60,7 @@ export default async function Home({
   async function nextEvent(type: EventType) {
     let query = supabase
       .from('events')
-      .select('*')
+      .select('*, absences(athlete_id, injury)')
       .eq('type', type)
       .is('archive_id', null)
       .gte('starts_at', since)
@@ -82,12 +82,17 @@ export default async function Home({
 
     if (!data) return null
 
-    const event = data as Event
+    /*
+     * Le assenze arrivano annidate nella stessa query invece che con
+     * una seconda chiamata: due giri di rete in meno per ogni apertura
+     * della home, che a bordo campo col 3G si sentono.
+     */
+    const row = data as Event & {
+      absences?: { athlete_id: string; injury: boolean }[]
+    }
 
-    const { data: absences } = await supabase
-      .from('absences')
-      .select('athlete_id, injury')
-      .eq('event_id', event.id)
+    const event = row as Event
+    const absences = row.absences ?? []
 
     // Convocati: la rosa della squadra dell'evento, o tutti se non ne ha.
     const called = event.team_id
@@ -101,7 +106,7 @@ export default async function Home({
 
     return {
       event,
-      absent: (absences ?? []) as { athlete_id: string; injury: boolean }[],
+      absent: absences as { athlete_id: string; injury: boolean }[],
       roster: called,
       teamName: event.team_id
         ? (teams.find((t) => t.id === event.team_id)?.name ?? 'Squadra rimossa')

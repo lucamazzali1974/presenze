@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Figtree } from 'next/font/google'
 import { InstallPrompt } from '@/components/install-prompt'
 import { OfflineBanner } from '@/components/offline-banner'
+import { AutoRefresh } from '@/components/auto-refresh'
 import './globals.css'
 
 // TT Fors (il font di seocheck.therope.it) e' su licenza e non e'
@@ -70,6 +71,7 @@ export default function RootLayout({
       </head>
       <body>
         <OfflineBanner />
+        <AutoRefresh />
         {children}
         <InstallPrompt />
       </body>

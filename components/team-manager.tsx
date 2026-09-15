@@ -10,6 +10,7 @@ import {
 } from '@/lib/actions/teams'
 import { AthleteName } from '@/components/athlete-name'
 import type { Athlete, Team, TeamMember } from '@/lib/types'
+import { Busy } from '@/components/spinner'
 
 export function TeamManager({
   teams,
@@ -51,6 +52,8 @@ export function TeamManager({
 
   return (
     <main className="wrap pb-16">
+      <Busy show={isPending} />
+
       <div className="page-head">
         <p className="eyebrow">// Societ&agrave;</p>
         <h1 className="h1">Squadre</h1>

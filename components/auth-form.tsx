@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { signIn, signUp } from '@/lib/actions/auth'
+import { Spinner } from '@/components/spinner'
 
 export function AuthForm({ mode }: { mode: 'signin' | 'signup' }) {
   const [error, setError] = useState<string | null>(null)
@@ -75,7 +76,13 @@ export function AuthForm({ mode }: { mode: 'signin' | 'signup' }) {
           {error && <p className="alert">{error}</p>}
 
           <button type="submit" className="btn btn-primary mt-1" disabled={isPending}>
-            {isSignup ? 'Registrati' : 'Entra'}
+            {isPending ? (
+              <Spinner label={isSignup ? 'Registro…' : 'Entro…'} />
+            ) : isSignup ? (
+              'Registrati'
+            ) : (
+              'Entra'
+            )}
           </button>
         </form>
 

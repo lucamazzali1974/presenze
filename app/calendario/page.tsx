@@ -3,6 +3,7 @@ import { Nav } from '@/components/nav'
 import { isStaff, myAthlete, requireProfile } from '@/lib/auth'
 import { createClient } from '@/utils/supabase/server'
 import { EVENT_LABEL, dayStamp, formatEventTime, monthLabel } from '@/lib/format'
+import { mapsUrl } from '@/lib/maps'
 import type { Event, Team } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -162,10 +163,20 @@ export default async function CalendarioPage() {
                             <dd>{e.opponent}</dd>
                           </div>
                         )}
-                        {e.location && (
+                        {(e.location || e.address) && (
                           <div>
                             <dt>Campo</dt>
-                            <dd>{e.location}</dd>
+                            <dd>
+                              {e.location}
+                              {e.address && (
+                                <>
+                                  {e.location && <br />}
+                                  <span style={{ color: 'var(--color-muted)' }}>
+                                    {e.address}
+                                  </span>
+                                </>
+                              )}
+                            </dd>
                           </div>
                         )}
                       </dl>
@@ -187,6 +198,17 @@ export default async function CalendarioPage() {
                       <Link href={`/events/${e.id}`} className="btn btn-sm">
                         {me ? 'Segnala se non ci sarai' : 'Apri appello'}
                       </Link>
+
+                      {isMatch && mapsUrl(e.address, e.location) && (
+                        <a
+                          className="btn btn-sm"
+                          href={mapsUrl(e.address, e.location)!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Apri in Maps
+                        </a>
+                      )}
                     </div>
                   </li>
                 )

@@ -17,14 +17,16 @@ function readTeamId(formData: FormData) {
  * appiccicati dei dati che non vogliono dire piu' niente.
  */
 function readMatchFields(formData: FormData, type: string, date: string) {
-  if (type !== 'match') return { opponent: null, meet_at: null }
+  if (type !== 'match') return { opponent: null, meet_at: null, address: null }
 
   const opponent = String(formData.get('opponent') ?? '').trim()
   const meetTime = String(formData.get('meet_time') ?? '').trim()
+  const address = String(formData.get('address') ?? '').trim()
 
   return {
     opponent: opponent || null,
     meet_at: meetTime ? localToISO(date, meetTime) : null,
+    address: address || null,
   }
 }
 
