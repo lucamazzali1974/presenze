@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/utils/supabase/admin'
-import { requireAdmin } from '@/lib/auth'
+import { guard, requireProfile } from '@/lib/auth'
 import { toUsername, usernameError, usernameToEmail } from '@/lib/username'
 import type { Athlete } from '@/lib/types'
 
@@ -25,7 +25,8 @@ export async function createAthleteAccount(
   athleteId: string,
   formData: FormData
 ): Promise<Result> {
-  await requireAdmin()
+  const denied = await guard('utenti')
+  if (denied) return denied
 
   const username = toUsername(String(formData.get('username') ?? ''))
   const password = String(formData.get('password') ?? '')
@@ -107,7 +108,8 @@ export async function resetAthletePassword(
   profileId: string,
   formData: FormData
 ): Promise<Result> {
-  await requireAdmin()
+  const denied = await guard('utenti')
+  if (denied) return denied
 
   const password = String(formData.get('password') ?? '')
   if (password.length < 8) {
@@ -133,7 +135,9 @@ export async function resetAthletePassword(
  * scollega da solo. Da qui in poi lo segna l'allenatore, come prima.
  */
 export async function removeAthleteAccount(profileId: string): Promise<Result> {
-  const me = await requireAdmin()
+  const denied = await guard('utenti')
+  if (denied) return denied
+  const me = await requireProfile()
 
   if (profileId === me.id) {
     return { error: 'Non puoi eliminare il tuo stesso account.' }

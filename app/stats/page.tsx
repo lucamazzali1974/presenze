@@ -1,9 +1,19 @@
 import { Nav } from '@/components/nav'
 import { StatsView, type ClosedSummary, type StatsRow } from '@/components/stats-view'
-import { isStaff, myAthlete, requireProfile } from '@/lib/auth'
+import { isStaff, myAthlete, requireSection } from '@/lib/auth'
+import { canEdit } from '@/lib/permissions'
 import { createClient } from '@/utils/supabase/server'
 import { byType, forTeam, sumStats } from '@/lib/stats'
-import type { Athlete, AttendanceStatRow, EventType, Team } from '@/lib/types'
+import type { MatchScorer, MatchStatsData } from '@/components/match-stats'
+import {
+  SCORE_POINTS,
+  type Athlete,
+  type AttendanceStatRow,
+  type EventType,
+  type MatchResult,
+  type Score,
+  type Team,
+} from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +22,7 @@ export default async function StatsPage({
 }: {
   searchParams: Promise<{ team?: string }>
 }) {
-  const profile = await requireProfile()
+  const { profile, perms } = await requireSection('percentuali')
   const supabase = await createClient()
   const params = await searchParams
 
@@ -37,6 +47,24 @@ export default async function StatsPage({
     supabase.from('teams').select('*').order('name', { ascending: true }),
     supabase.from('team_members').select('*'),
   ])
+
+  // Le partite a referto: una riga per formazione giocata.
+  const { data: resultsData } = await supabase
+    .from('match_results')
+    .select('*')
+    .order('starts_at', { ascending: false })
+
+  const allResults = (resultsData ?? []) as MatchResult[]
+
+  // Le marcature di quelle formazioni, per la classifica e per lo storico.
+  const lineupIds = allResults.map((r) => r.lineup_id)
+  const { data: scoreData } =
+    lineupIds.length > 0
+      ? await supabase
+          .from('scores')
+          .select('lineup_id, athlete_id, kind, qty')
+          .in('lineup_id', lineupIds)
+      : { data: null }
 
   const error =
     statsRes.error?.message ??
@@ -112,17 +140,86 @@ export default async function StatsPage({
     firstAt: dates[0] ?? null,
   }
 
+  /*
+   * Le partite seguono lo stesso filtro squadra delle percentuali: gli
+   * eventi senza squadra riguardano tutti e restano sempre in elenco.
+   */
+  const results = team
+    ? allResults.filter((r) => r.team_id === team || r.team_id === null)
+    : allResults
+
+  const visibleLineups = new Set(results.map((r) => r.lineup_id))
+  const athleteById = new Map(athletes.map((a) => [a.id, a]))
+
+  // Da contatori sparsi a una riga per atleta, e a una per formazione.
+  const perAthlete: Record<string, MatchScorer> = {}
+  const byLineup: Record<string, Record<string, MatchScorer>> = {}
+
+  function blank(athleteId: string): MatchScorer {
+    const a = athleteById.get(athleteId)
+    return {
+      athlete_id: athleteId,
+      athlete: a ?? { first_name: 'Giocatore', last_name: 'rimosso', nickname: null },
+      tries: 0,
+      conversions: 0,
+      penalties: 0,
+      drops: 0,
+      points: 0,
+    }
+  }
+
+  const FIELD = {
+    try: 'tries',
+    conversion: 'conversions',
+    penalty: 'penalties',
+    drop: 'drops',
+  } as const
+
+  for (const s of (scoreData ?? []) as Score[]) {
+    if (!visibleLineups.has(s.lineup_id) || s.qty <= 0) continue
+    // Qui vale la stessa regola delle percentuali: il giocatore vede i
+    // propri numeri, non quelli dei compagni. Il tabellino completo di
+    // una partita resta sulla pagina della partita.
+    if (!staff && s.athlete_id !== me?.id) continue
+
+    const points = s.qty * SCORE_POINTS[s.kind]
+
+    const total = (perAthlete[s.athlete_id] ??= blank(s.athlete_id))
+    total[FIELD[s.kind]] += s.qty
+    total.points += points
+
+    const lineup = (byLineup[s.lineup_id] ??= {})
+    const row = (lineup[s.athlete_id] ??= blank(s.athlete_id))
+    row[FIELD[s.kind]] += s.qty
+    row.points += points
+  }
+
+  const matches: MatchStatsData = {
+    results,
+    scorers: Object.values(perAthlete).sort(
+      (a, b) => b.points - a.points || b.tries - a.tries
+    ),
+    byLineup: Object.fromEntries(
+      Object.entries(byLineup).map(([id, map]) => [
+        id,
+        Object.values(map).sort((a, b) => b.points - a.points),
+      ])
+    ),
+    perAthlete,
+  }
+
   return (
     <>
-      <Nav profile={profile} />
+      <Nav perms={perms} />
       <StatsView
         rows={rows}
         closed={closed}
         teams={shownTeams}
         selectedTeam={team}
         loadError={error}
-        isAdmin={profile.role === 'admin'}
+        canArchive={canEdit(perms, 'archivio')}
         selfOnly={!staff}
+        matches={matches}
       />
     </>
   )

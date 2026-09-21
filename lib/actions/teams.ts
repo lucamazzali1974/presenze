@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
-import { requireAdmin } from '@/lib/auth'
+import { guard } from '@/lib/auth'
+import type { ActionResult } from '@/lib/types'
 
 function refresh() {
   revalidatePath('/admin/teams')
@@ -12,8 +13,9 @@ function refresh() {
   revalidatePath('/')
 }
 
-export async function createTeam(formData: FormData) {
-  await requireAdmin()
+export async function createTeam(formData: FormData): Promise<ActionResult> {
+  const denied = await guard('squadre')
+  if (denied) return denied
   const supabase = await createClient()
 
   const name = String(formData.get('name') ?? '').trim()
@@ -37,8 +39,9 @@ export async function createTeam(formData: FormData) {
   return { ok: true }
 }
 
-export async function renameTeam(id: string, formData: FormData) {
-  await requireAdmin()
+export async function renameTeam(id: string, formData: FormData): Promise<ActionResult> {
+  const denied = await guard('squadre')
+  if (denied) return denied
   const supabase = await createClient()
 
   const name = String(formData.get('name') ?? '').trim()
@@ -62,8 +65,9 @@ export async function renameTeam(id: string, formData: FormData) {
   return { ok: true }
 }
 
-export async function toggleTeamActive(id: string, active: boolean) {
-  await requireAdmin()
+export async function toggleTeamActive(id: string, active: boolean): Promise<ActionResult> {
+  const denied = await guard('squadre')
+  if (denied) return denied
   const supabase = await createClient()
 
   const { error } = await supabase.from('teams').update({ active }).eq('id', id)
@@ -78,8 +82,9 @@ export async function toggleTeamActive(id: string, active: boolean) {
  * sparisce (cascade) e gli eventi tornano "di tutta la societa'"
  * (team_id a null), quindi le presenze gia' registrate restano valide.
  */
-export async function deleteTeam(id: string) {
-  await requireAdmin()
+export async function deleteTeam(id: string): Promise<ActionResult> {
+  const denied = await guard('squadre')
+  if (denied) return denied
   const supabase = await createClient()
 
   const { error } = await supabase.from('teams').delete().eq('id', id)
@@ -90,8 +95,9 @@ export async function deleteTeam(id: string) {
 }
 
 /** Riscrive la rosa della squadra: prima toglie, poi inserisce la lista nuova. */
-export async function setTeamMembers(teamId: string, athleteIds: string[]) {
-  await requireAdmin()
+export async function setTeamMembers(teamId: string, athleteIds: string[]): Promise<ActionResult> {
+  const denied = await guard('squadre')
+  if (denied) return denied
   const supabase = await createClient()
 
   const { error: delError } = await supabase

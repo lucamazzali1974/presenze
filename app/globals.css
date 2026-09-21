@@ -776,3 +776,277 @@ a.pill[data-on='true']:hover {
   color: var(--muted);
   font-size: 14px;
 }
+
+/* ── matrice dei permessi ────────────────── */
+
+/* Una riga per sezione: a sinistra cosa comanda, a destra il livello.
+   Su telefono i due blocchi si impilano invece di stringersi. */
+.perm-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 14px 18px;
+}
+
+@media (max-width: 680px) {
+  .perm-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.perm-name {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.perm-hint {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Tre stati in un solo controllo: si legge a colpo d'occhio dove sta
+   il pallino, senza aprire un menu a tendina per ogni riga. */
+.perm-set {
+  display: inline-flex;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.perm-set label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.perm-set label + label {
+  border-left: 1px solid var(--line);
+}
+
+.perm-set input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.perm-set label:has(input:checked) {
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* "Nascosta" non e' una scelta da festeggiare: resta spenta. */
+.perm-set label:has(input:checked[value='none']) {
+  background: var(--track);
+  color: var(--par);
+}
+
+.perm-set label:has(input:focus-visible) {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+
+.perm-set:has(input:disabled) {
+  opacity: 0.55;
+}
+
+.perm-set label:has(input:disabled) {
+  cursor: default;
+}
+
+/* ── marcature ───────────────────────────── */
+
+.scorer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
+  padding: 10px 16px;
+}
+
+/* Bersagli da 44px: si preme col pollice, in piedi, a bordo campo. */
+.stepper {
+  display: inline-flex;
+  align-items: stretch;
+  flex: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.stepper button {
+  width: 46px;
+  min-height: 44px;
+  font-size: 20px;
+  line-height: 1;
+  font-family: inherit;
+  border: 0;
+  background: transparent;
+  color: var(--par);
+  cursor: pointer;
+}
+
+.stepper button:hover:not(:disabled) {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.stepper button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.stepper b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  font-weight: 500;
+  color: var(--faint);
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+
+.stepper b[data-on='true'] {
+  color: var(--text);
+}
+
+/* ── menu mobile ─────────────────────────── */
+
+.burger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* Tre tratti che diventano una X: nessuna icona da caricare. */
+.burger span {
+  position: relative;
+  display: block;
+  width: 16px;
+  height: 1.5px;
+  background: currentColor;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+.burger span::before,
+.burger span::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 16px;
+  height: 1.5px;
+  background: currentColor;
+  transition: transform 0.18s ease;
+}
+
+.burger span::before {
+  top: -5px;
+}
+.burger span::after {
+  top: 5px;
+}
+
+.burger[aria-expanded='true'] span {
+  background: transparent;
+}
+.burger[aria-expanded='true'] span::before {
+  transform: translateY(5px) rotate(45deg);
+}
+.burger[aria-expanded='true'] span::after {
+  transform: translateY(-5px) rotate(-45deg);
+}
+
+/* Parte sotto la barra e non sopra: l'hamburger resta visibile e
+   premibile, ed e' lui stesso a richiudere il pannello. */
+.drawer {
+  position: fixed;
+  top: var(--topbar-h);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  padding-bottom: env(safe-area-inset-bottom);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.drawer nav {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0 24px;
+}
+
+.drawer a,
+.drawer button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 18px 20px;
+  font-size: 19px;
+  font-family: inherit;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--par);
+  cursor: pointer;
+}
+
+.drawer a[aria-current='page'] {
+  color: var(--text);
+}
+
+/* Il puntino dice dove sei senza affidarsi al solo colore. */
+.drawer a[aria-current='page']::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--red);
+  flex: none;
+}
+
+.drawer-foot {
+  margin-top: auto;
+  padding: 20px;
+}
+
+.drawer-foot button {
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  justify-content: center;
+  padding: 14px 20px;
+  font-size: 16px;
+}
+
+@media (max-width: 820px) {
+  .burger {
+    display: inline-flex;
+  }
+
+  /* Sotto questa soglia le voci stavano in una barra che scorreva di
+     lato: si scopriva l'ultima voce solo trascinando. Meglio il layer. */
+  .topbar .topnav {
+    display: none;
+  }
+}

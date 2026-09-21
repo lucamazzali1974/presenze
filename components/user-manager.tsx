@@ -10,7 +10,7 @@ import {
 } from '@/lib/actions/users'
 import { linkAthleteProfile } from '@/lib/actions/athletes'
 import { formatShort, fullName } from '@/lib/format'
-import type { Athlete, Profile, Team } from '@/lib/types'
+import type { Athlete, Profile, Role, Team } from '@/lib/types'
 import { Busy } from '@/components/spinner'
 
 const STATUS_LABEL: Record<Profile['status'], string> = {
@@ -25,14 +25,14 @@ const STATUS_TAG: Record<Profile['status'], string> = {
   blocked: 'tag fail',
 }
 
-const ROLE_LABEL: Record<Profile['role'], string> = {
-  admin: 'Amministratori',
-  user: 'Allenatori',
-  athlete: 'Atleti',
-}
-
-/** Ordine delle sottosezioni dentro ogni gruppo. */
+/** Ordine dei tipi base dentro ogni gruppo. */
 const ROLE_ORDER: Profile['role'][] = ['admin', 'user', 'athlete']
+
+const BASE_LABEL: Record<Profile['role'], string> = {
+  admin: 'Amministrazione',
+  user: 'Staff',
+  athlete: 'Giocatori',
+}
 
 /** Oltre questa soglia l'elenco si taglia e compare "mostra tutti". */
 const PAGE = 30
@@ -41,16 +41,25 @@ export function UserManager({
   users,
   athletes,
   teams,
+  roles,
   teamIdsOf = {},
   meId,
+  isAdmin,
+  canEdit,
   canManageAccounts,
 }: {
   users: Profile[]
   athletes: Athlete[]
   teams: Team[]
+  /** I ruoli assegnabili, con la loro matrice di permessi. */
+  roles: Role[]
   /** Le squadre di ogni account, via la sua scheda atleta. */
   teamIdsOf?: Record<string, string[]>
   meId: string
+  isAdmin: boolean
+  /** 'Utenti' in modifica: senza, la pagina e' un elenco e basta. */
+  canEdit: boolean
+  /** Creare ed eliminare accessi richiede anche SUPABASE_SECRET_KEY. */
   canManageAccounts: boolean
 }) {
   const [error, setError] = useState<string | null>(null)
@@ -62,6 +71,11 @@ export function UserManager({
   const createRef = useRef<HTMLFormElement>(null)
 
   const pending = users.filter((u) => u.status === 'pending')
+
+  const roleById = new Map(roles.map((r) => [r.id, r]))
+
+  // Un ruolo di amministrazione lo assegna solo un admin vero.
+  const assignable = roles.filter((r) => isAdmin || r.base !== 'admin')
 
   // Quale scheda atleta e' gia' collegata a quale account.
   const athleteOf = new Map(
@@ -126,6 +140,9 @@ export function UserManager({
 
   const rowProps = {
     meId,
+    roles: assignable,
+    roleById,
+    canEdit,
     canManageAccounts,
     athletes,
     athleteOf,
@@ -151,7 +168,7 @@ export function UserManager({
             : ''}
         </p>
 
-        {canManageAccounts ? (
+        {canEdit && canManageAccounts ? (
           <button
             type="button"
             className="btn btn-primary mt-5"
@@ -159,11 +176,16 @@ export function UserManager({
           >
             {showCreate ? 'Annulla' : 'Crea un accesso'}
           </button>
-        ) : (
+        ) : canEdit ? (
           <p className="mt-5 text-sm" style={{ color: 'var(--color-faint)' }}>
             Per creare o eliminare accessi da qui serve la variabile
             SUPABASE_SECRET_KEY. Senza, puoi comunque approvare, bloccare e
             modificare chi si registra da solo.
+          </p>
+        ) : (
+          <p className="mt-5 text-sm" style={{ color: 'var(--color-faint)' }}>
+            Hai accesso in sola lettura: l&rsquo;elenco si consulta, non si
+            modifica.
           </p>
         )}
       </div>
@@ -185,10 +207,12 @@ export function UserManager({
             </label>
             <label className="field">
               <span>Ruolo</span>
-              <select name="role">
-                <option value="user">Allenatore</option>
-                <option value="admin">Amministratore</option>
-                <option value="athlete">Atleta</option>
+              <select name="role_id" defaultValue={assignable[0]?.id ?? ''}>
+                {assignable.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
@@ -243,7 +267,7 @@ export function UserManager({
                     className="mini mb-2"
                     style={{ color: 'var(--color-faint)' }}
                   >
-                    {ROLE_LABEL[role]} ({list.length})
+                    {BASE_LABEL[role]} ({list.length})
                   </p>
                 )}
 
@@ -302,6 +326,9 @@ export function UserManager({
 type RowProps = {
   user: Profile
   meId: string
+  roles: Role[]
+  roleById: Map<string, Role>
+  canEdit: boolean
   canManageAccounts: boolean
   athletes: Athlete[]
   athleteOf: Map<string, Athlete>
@@ -316,6 +343,9 @@ type RowProps = {
 function UserRow({
   user: u,
   meId,
+  roles,
+  roleById,
+  canEdit,
   canManageAccounts,
   athletes,
   athleteOf,
@@ -335,7 +365,9 @@ function UserRow({
 
         <span className="flex flex-wrap gap-2">
           {u.id === meId && <span className="tag">Tu</span>}
-          {u.role === 'admin' && <span className="tag info">Admin</span>}
+          <span className={u.role === 'admin' ? 'tag info' : 'tag'}>
+            {(u.role_id && roleById.get(u.role_id)?.name) || 'Senza ruolo'}
+          </span>
           {u.role === 'athlete' &&
             (athleteOf.has(u.id) ? (
               <span className="tag">Atleta · {fullName(athleteOf.get(u.id)!)}</span>
@@ -350,7 +382,7 @@ function UserRow({
         {u.email} · dal {formatShort(u.created_at)}
       </p>
 
-      {u.role === 'athlete' && (
+      {u.role === 'athlete' && canEdit && (
         <AthleteLink
           user={u}
           athletes={athletes}
@@ -381,10 +413,17 @@ function UserRow({
             </label>
             <label className="field">
               <span>Ruolo</span>
-              <select name="role" defaultValue={u.role}>
-                <option value="user">Allenatore</option>
-                <option value="admin">Amministratore</option>
-                <option value="athlete">Atleta</option>
+              <select name="role_id" defaultValue={u.role_id ?? ''}>
+                {u.role_id && !roles.some((r) => r.id === u.role_id) && (
+                  <option value={u.role_id}>
+                    {roleById.get(u.role_id)?.name ?? 'Ruolo attuale'}
+                  </option>
+                )}
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="field">
@@ -406,7 +445,7 @@ function UserRow({
             </button>
           </div>
         </form>
-      ) : (
+      ) : !canEdit ? null : (
         <div className="row-actions">
           {u.status !== 'active' && (
             <button

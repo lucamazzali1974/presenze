@@ -18,10 +18,10 @@ function periodo(a: Archive) {
 
 export function ArchiveList({
   archives,
-  isAdmin,
+  canEdit,
 }: {
   archives: Archive[]
-  isAdmin: boolean
+  canEdit: boolean
 }) {
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -68,7 +68,7 @@ export function ArchiveList({
                 Apri
               </Link>
 
-              {isAdmin && (
+              {canEdit && (
                 <>
                   <button
                     type="button"

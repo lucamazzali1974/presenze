@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
-import { requireAdmin } from '@/lib/auth'
+import { guard } from '@/lib/auth'
+import type { ActionResult } from '@/lib/types'
 
 /**
  * joined_on decide da quale evento in poi il giocatore viene conteggiato:
@@ -21,8 +22,9 @@ function readJoinedOn(formData: FormData): {
   return { value: raw, error: null }
 }
 
-export async function createAthlete(formData: FormData) {
-  await requireAdmin()
+export async function createAthlete(formData: FormData): Promise<ActionResult> {
+  const denied = await guard('atleti')
+  if (denied) return denied
   const supabase = await createClient()
 
   const first_name = String(formData.get('first_name') ?? '').trim()
@@ -51,8 +53,9 @@ export async function createAthlete(formData: FormData) {
   return { ok: true }
 }
 
-export async function updateAthlete(id: string, formData: FormData) {
-  await requireAdmin()
+export async function updateAthlete(id: string, formData: FormData): Promise<ActionResult> {
+  const denied = await guard('atleti')
+  if (denied) return denied
   const supabase = await createClient()
 
   const first_name = String(formData.get('first_name') ?? '').trim()
@@ -84,8 +87,9 @@ export async function updateAthlete(id: string, formData: FormData) {
   return { ok: true }
 }
 
-export async function toggleAthleteActive(id: string, active: boolean) {
-  await requireAdmin()
+export async function toggleAthleteActive(id: string, active: boolean): Promise<ActionResult> {
+  const denied = await guard('atleti')
+  if (denied) return denied
   const supabase = await createClient()
 
   const { error } = await supabase
@@ -101,8 +105,9 @@ export async function toggleAthleteActive(id: string, active: boolean) {
   return { ok: true }
 }
 
-export async function deleteAthlete(id: string) {
-  await requireAdmin()
+export async function deleteAthlete(id: string): Promise<ActionResult> {
+  const denied = await guard('atleti')
+  if (denied) return denied
   const supabase = await createClient()
 
   const { error } = await supabase.from('athletes').delete().eq('id', id)
@@ -122,8 +127,11 @@ export async function deleteAthlete(id: string) {
 export async function linkAthleteProfile(
   athleteId: string,
   profileId: string | null
-) {
-  await requireAdmin()
+): Promise<ActionResult> {
+  // Il collegamento si fa da due pagine diverse — la rosa e gli utenti —
+  // quindi basta avere in mano una delle due sezioni.
+  const denied = (await guard('atleti')) && (await guard('utenti'))
+  if (denied) return denied
   const supabase = await createClient()
 
   // Un account per un giocatore solo: se era gia' su un'altra scheda,

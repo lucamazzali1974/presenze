@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation'
 import { Nav } from '@/components/nav'
 import { ArchiveDetail } from '@/components/archive-detail'
-import { requireProfile } from '@/lib/auth'
+import { requireSection } from '@/lib/auth'
+import { canEdit } from '@/lib/permissions'
 import { createClient } from '@/utils/supabase/server'
 import type { Archive, Event } from '@/lib/types'
 
@@ -13,7 +14,7 @@ export default async function ArchiveDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const profile = await requireProfile()
+  const { perms } = await requireSection('archivio')
   const supabase = await createClient()
 
   const { data: archive } = await supabase
@@ -32,11 +33,11 @@ export default async function ArchiveDetailPage({
 
   return (
     <>
-      <Nav profile={profile} />
+      <Nav perms={perms} />
       <ArchiveDetail
         archive={archive as Archive}
         events={(events ?? []) as Event[]}
-        isAdmin={profile.role === 'admin'}
+        canEdit={canEdit(perms, 'archivio')}
       />
     </>
   )

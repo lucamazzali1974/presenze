@@ -12,11 +12,11 @@ import type { Archive, AttendanceStat, Event } from '@/lib/types'
 export function ArchiveDetail({
   archive,
   events,
-  isAdmin,
+  canEdit,
 }: {
   archive: Archive
   events: Event[]
-  isAdmin: boolean
+  canEdit: boolean
 }) {
   const [tab, setTab] = useState<'stats' | 'events'>('stats')
   const [error, setError] = useState<string | null>(null)
@@ -116,7 +116,7 @@ export function ArchiveDetail({
             CSV calendario
           </button>
 
-          {isAdmin && (
+          {canEdit && (
             <>
               <button
                 type="button"

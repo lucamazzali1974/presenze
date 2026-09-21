@@ -6,6 +6,7 @@ import { createArchive } from '@/lib/actions/archives'
 import { AthleteName } from '@/components/athlete-name'
 import { download, slugDate, statsCsv } from '@/lib/csv'
 import { formatDate } from '@/lib/format'
+import { MatchStats, type MatchStatsData } from '@/components/match-stats'
 import type { Athlete, AttendanceStat, Team } from '@/lib/types'
 import { Busy } from '@/components/spinner'
 
@@ -30,18 +31,23 @@ export function StatsView({
   teams,
   selectedTeam = null,
   loadError = null,
-  isAdmin,
+  canArchive,
   selfOnly = false,
+  matches,
 }: {
   rows: StatsRow[]
   closed: ClosedSummary
   teams: Team[]
   selectedTeam?: string | null
   loadError?: string | null
-  isAdmin: boolean
+  /** 'Archivio' in modifica: da qui si congela un periodo. */
+  canArchive: boolean
   /** L'atleta vede solo la propria riga: cambia i testi, non i conti. */
   selfOnly?: boolean
+  /** Il secondo pannello: risultati, marcatori e storico delle partite. */
+  matches: MatchStatsData
 }) {
+  const [tab, setTab] = useState<'presenze' | 'partite'>('presenze')
   const [showArchive, setShowArchive] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -130,7 +136,7 @@ export function StatsView({
             Scarica CSV
           </button>
 
-          {isAdmin && !selectedTeam && (
+          {canArchive && !selectedTeam && (
             <button
               type="button"
               className="btn btn-primary"
@@ -143,7 +149,31 @@ export function StatsView({
         )}
       </div>
 
-      {showArchive && isAdmin && (
+      {/* Due letture degli stessi appelli: quante volte c'era e, per le
+          partite, come sono andate. Separarle evita una tabella che non
+          entra nello schermo di un telefono. */}
+      <div className="filters mb-4">
+        <button
+          type="button"
+          className="pill"
+          data-on={tab === 'presenze'}
+          onClick={() => setTab('presenze')}
+          aria-pressed={tab === 'presenze'}
+        >
+          Presenze
+        </button>
+        <button
+          type="button"
+          className="pill"
+          data-on={tab === 'partite'}
+          onClick={() => setTab('partite')}
+          aria-pressed={tab === 'partite'}
+        >
+          Partite
+        </button>
+      </div>
+
+      {showArchive && canArchive && (
         <form ref={formRef} action={submitArchive} className="panel mb-4 p-4">
           <p className="mini">Nuovo archivio</p>
 
@@ -193,6 +223,9 @@ export function StatsView({
         </p>
       )}
 
+      {tab === 'partite' ? (
+        <MatchStats data={matches} rows={rows} selfOnly={selfOnly} />
+      ) : (
       <ul className="panel rows">
         {rows.map((r) => (
           <li key={r.id} className="row">
@@ -224,6 +257,7 @@ export function StatsView({
           </li>
         )}
       </ul>
+      )}
     </main>
   )
 }

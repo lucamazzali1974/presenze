@@ -1,13 +1,14 @@
 import { Nav } from '@/components/nav'
 import { ArchiveList } from '@/components/archive-list'
-import { requireProfile } from '@/lib/auth'
+import { requireSection } from '@/lib/auth'
+import { canEdit } from '@/lib/permissions'
 import { createClient } from '@/utils/supabase/server'
 import type { Archive } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
 export default async function ArchivePage() {
-  const profile = await requireProfile()
+  const { perms } = await requireSection('archivio')
   const supabase = await createClient()
 
   const { data } = await supabase
@@ -17,10 +18,10 @@ export default async function ArchivePage() {
 
   return (
     <>
-      <Nav profile={profile} />
+      <Nav perms={perms} />
       <ArchiveList
         archives={(data ?? []) as Archive[]}
-        isAdmin={profile.role === 'admin'}
+        canEdit={canEdit(perms, 'archivio')}
       />
     </>
   )

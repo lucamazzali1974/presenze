@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
-import { requireAdmin } from '@/lib/auth'
+import { guard } from '@/lib/auth'
 
 type Result = { ok?: true; error?: string }
 
@@ -18,7 +18,8 @@ function refresh() {
  * dal calendario e dalle statistiche correnti.
  */
 export async function createArchive(formData: FormData): Promise<Result> {
-  await requireAdmin()
+  const denied = await guard('archivio')
+  if (denied) return denied
   const supabase = await createClient()
 
   const name = String(formData.get('name') ?? '').trim()
@@ -42,7 +43,8 @@ export async function createArchive(formData: FormData): Promise<Result> {
 
 /** Riporta gli eventi nel calendario corrente e rimuove l'archivio. */
 export async function restoreArchive(id: string): Promise<Result> {
-  await requireAdmin()
+  const denied = await guard('archivio')
+  if (denied) return denied
   const supabase = await createClient()
 
   const { error } = await supabase.rpc('restore_archive', { p_id: id })
@@ -54,7 +56,8 @@ export async function restoreArchive(id: string): Promise<Result> {
 
 /** Elimina per sempre eventi, presenze e archivio. */
 export async function purgeArchive(id: string): Promise<Result> {
-  await requireAdmin()
+  const denied = await guard('archivio')
+  if (denied) return denied
   const supabase = await createClient()
 
   const { error } = await supabase.rpc('purge_archive', { p_id: id })

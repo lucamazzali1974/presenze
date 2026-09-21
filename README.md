@@ -18,9 +18,10 @@ Chi accede e' un allenatore o dirigente e compila l'appello di tutta la rosa.
 ## Avvio
 
 1. Crea un progetto su supabase.com (piano Free, regione Frankfurt).
-2. SQL Editor, incolla `supabase/schema.sql`, esegui tutto in una volta sola.
-   Se il database esiste gia' da una versione precedente, esegui invece solo
-   `supabase/migration-002-archivi.sql`.
+2. SQL Editor, incolla `supabase/schema.sql`, esegui tutto in una volta sola,
+   poi le migrazioni `002` -> `012` in ordine.
+   Se il database esiste gia', esegui solo le migrazioni che ti mancano:
+   sono tutte idempotenti, rieseguirle non rompe niente.
 3. `cp .env.local.example .env.local` e compila i valori (vedi sotto).
 4. `npm install && npm run dev`
 5. Registrati da `/register`, poi in SQL Editor:
@@ -66,16 +67,17 @@ creano dall'interno.
 | Percorso | Chi | Cosa |
 |---|---|---|
 | `/` | tutti | appello del prossimo allenamento e della prossima partita |
-| `/atleti` | tutti | rosa completa; form, modifiche e accessi solo per admin |
-| `/calendario` | non admin | eventi in programma in sola lettura, con link all'appello |
+| `/atleti` | permesso Atleti | rosa completa; anagrafica e accessi secondo i permessi |
+| `/calendario` | Calendario in lettura | eventi in programma in sola lettura, con link all'appello |
 | `/profilo` | tutti | come entri, cambio password, notifiche (solo atleti) |
 | `/stats` | tutti | percentuali per giocatore, allenamenti e partite separati |
-| `/events/[id]` | tutti | appello di un evento specifico, anche passato |
-| `/admin/events` | admin | calendario, date singole e ricorrenti |
-| `/admin/teams` | admin | squadre e composizione delle rose |
+| `/events/[id]` | permesso Appello | appello di un evento; per le partite anche formazioni, risultato e marcature |
+| `/admin/events` | Calendario in modifica | calendario, date singole e ricorrenti |
+| `/admin/teams` | permesso Squadre | squadre e composizione delle rose |
 | `/archivio` | tutti | periodi archiviati; ripristino ed eliminazione per gli admin |
 | `/archivio/[id]` | tutti | percentuali fotografate e calendario del periodo, con CSV |
-| `/admin/users` | admin | accessi: creazione, approvazione, blocco, ruolo, collegamento alla scheda atleta |
+| `/admin/users` | permesso Utenti | accessi: creazione, approvazione, blocco, ruolo, collegamento alla scheda atleta |
+| `/admin/roles` | permesso Ruoli | ruoli e matrice dei permessi per sezione |
 
 ## Deploy
 
@@ -226,6 +228,56 @@ La home prende le assenze **annidate** nella query degli eventi
 giri di rete in meno a ogni apertura, che col segnale del campo si
 sentono.
 
+## Ruoli e permessi
+
+Il ruolo non e' piu' una parola nella colonna `profiles.role`: e' una riga
+nella tabella `roles`, e l'admin ne crea quanti ne servono da
+`/admin/roles`. Per ogni ruolo, ogni sezione dell'app sta in uno di tre
+stati: **nascosta**, **sola lettura**, **modifica**. Le sezioni sono otto:
+appello, calendario, atleti, percentuali, archivio, squadre, utenti, ruoli.
+
+Sotto la matrice c'e' il **tipo base**, che si sceglie alla creazione e
+decide cosa il database concede:
+
+| Tipo base | Cosa comporta |
+|---|---|
+| `admin` | accesso completo, ignora la matrice |
+| `staff` | opera su tutta la rosa: appello di chiunque, percentuali di tutti |
+| `athlete` | collegato a una scheda atleta: vede e segna solo se stesso |
+
+I due livelli non si sovrappongono: la matrice **restringe**, non allarga.
+Un ruolo di tipo `athlete` con "Appello: modifica" continua a poter segnare
+solo la propria riga, perche' a impedirglielo e' la RLS
+(`athlete_can_mark`), non l'interfaccia.
+
+Tre ruoli esistono gia' e non si eliminano (si rinominano): Amministratore,
+Allenatore, Giocatore. Partono con gli stessi poteri che avevano prima
+della migrazione, quindi il giorno dopo l'aggiornamento nessuno vede ne'
+piu' ne' meno di prima. Uno dei ruoli e' segnato come **predefinito**: e'
+quello che prende chi si registra da solo, sempre in attesa di approvazione.
+
+I permessi valgono in tre punti, non uno:
+
+1. il menu mostra solo le sezioni almeno in lettura;
+2. ogni pagina chiama `requireSection()` e rimanda altrove chi non ce l'ha;
+3. le policy RLS chiamano `can_edit('<sezione>')` al posto del vecchio
+   `is_admin()`, quindi il permesso regge anche interrogando l'API
+   Supabase con la chiave pubblica, fuori dall'app.
+
+### Delegare Utenti e Ruoli
+
+Dare "Utenti: modifica" o "Ruoli: modifica" a un non-admin e' comodo e ha
+dei limiti espliciti, imposti da tre trigger nel database:
+
+* nessuno che non sia admin crea, assegna, modifica o elimina un ruolo o
+  un account di tipo `admin`;
+* nessuno cambia il ruolo al proprio account;
+* nessuno modifica i permessi del ruolo che sta indossando.
+
+Resta vero, ed e' inevitabile, che chi ha "Ruoli: modifica" puo' alzare i
+permessi di un altro ruolo non-admin e farselo assegnare da un complice.
+Se la cosa non ti sta bene, tieni la sezione Ruoli ai soli admin.
+
 ## Utenti
 
 L'elenco e' raggruppato: prima lo **Staff** (admin e allenatori, che non
@@ -237,6 +289,75 @@ scavalca i tagli.
 
 Le squadre di un account arrivano dalla sua scheda atleta: i profili non
 hanno una squadra propria.
+
+## Formazioni, risultato e marcature
+
+Al concentramento si va con piu' squadre: stesso campo, stesso avversario,
+orari diversi. Una partita si divide quindi in **formazioni** (`lineups`),
+e ognuna ha i suoi convocati, il suo orario, il suo avversario (se diverso
+da quello della giornata), il suo risultato e le sue marcature.
+
+Le formazioni si gestiscono dalla pagina della partita, sotto il tabellone
+dell'appello. Servono i permessi `Appello: modifica`: e' lavoro da bordo
+campo, lo fa chi compila l'appello.
+
+Regole che vale la pena sapere:
+
+* **un giocatore sta in una formazione sola** per partita. Se lo selezioni
+  in un'altra, esce dalla precedente da solo: lo impone un indice unique
+  su `(event_id, athlete_id)`, non il frontend.
+* **restare fuori da una formazione non toglie niente da solo.** Chi non
+  gioca e' assente, come sempre: e' la regola prudente, perche' altrimenti
+  basterebbe dimenticarsi di compilare le formazioni per far sparire le
+  assenze di mezza rosa. Per togliere dai conti chi non era atteso c'e' il
+  flag **non convocato** (sotto).
+* **orari nulli si ereditano.** Una formazione senza orario proprio segue
+  quello della partita, quindi spostare la partita le sposta tutte.
+* una partita **senza** formazioni continua a funzionare come sempre, ma
+  non ha risultato ne' marcature: quelli vivono sulla formazione.
+
+### Non convocato
+
+Sul tabellone, sotto un giocatore segnato assente, compaiono due pillole:
+**infortunio** (resta un'assenza, contata a parte) e **non convocato**.
+Con la seconda quell'evento esce dai conti di quel giocatore: ne'
+presenza ne' assenza, come se per lui non fosse mai stato in calendario.
+Le due si escludono a vicenda, e c'e' un vincolo nel database che lo
+garantisce.
+
+Il flag lo mette solo lo staff. Un atleta puo' segnarsi assente, non puo'
+dichiararsi non convocato: gli basterebbe per uscire dalle statistiche
+quando gli conviene. A fermarlo e' un trigger, non il frontend.
+
+Nella sezione Formazioni ci sono due pulsanti per chi e' rimasto fuori da
+tutte le squadre: **segnali assenti** o **segnali non convocati**. Nessuno
+dei due scatta da solo — le formazioni si preparano giorni prima, e
+trovarsi mezza rosa gia' segnata prima di giocare sarebbe peggio del
+problema che risolve. Chi hai gia' segnato a mano non viene toccato.
+
+### Marcature
+
+Un contatore per atleta e per tipo, col `+` e il `-` a fianco del nome. Il
+tipo si sceglie una volta in cima alla lista — mete, trasformazioni,
+piazzati, drop — cosi' a bordo campo si tocca un pulsante solo per
+marcatura. I punti sono quelli del rugby (5 / 2 / 3 / 3) e stanno in
+`score_points()` nel database e in `SCORE_POINTS` in `lib/types.ts`: se ne
+cambi uno, cambia anche l'altro.
+
+Sotto l'elenco c'e' la quadratura: quanti punti risultano dai marcatori e
+quanti ne dichiara il risultato finale. Non blocca niente, dice solo se
+manca qualcosa.
+
+### Statistiche
+
+`/stats` ha due pannelli: **Presenze** (quello di sempre) e **Partite**,
+con bilancio delle formazioni giocate (vinte / pari / perse, punti fatti e
+subiti, medie), classifica marcatori, scheda per atleta (convocazioni,
+presenze, mete, punti) e storico partita per partita coi marcatori. Il
+filtro squadra vale per tutti e due.
+
+Il giocatore, qui come altrove, vede solo la propria riga e solo le
+partite in cui era convocato.
 
 ## Archivi
 
@@ -369,6 +490,15 @@ Scuro di default, chiaro con l'interruttore in alto a destra. La scelta sta in
 primo paint, cosi' non si vede il lampo scuro al ricarico. Senza scelta salvata
 si segue `prefers-color-scheme`.
 
+## Menu
+
+Sopra gli 820px le voci stanno in fila nella barra. Sotto, con otto
+sezioni possibili, la barra diventava un nastro da trascinare di lato e
+l'ultima voce non si vedeva: al suo posto c'e' un hamburger che apre un
+pannello a tutta pagina, una voce per riga, con il puntino rosso su quella
+corrente. Si chiude toccando una voce, ripremendo l'hamburger o con Esc, e
+mentre e' aperto la pagina sotto non scorre.
+
 ## Aspetto
 
 Il sistema visivo segue seocheck.therope.it: dashboard tecnica scura, nero con
@@ -385,11 +515,13 @@ grigio; chi non ha soprannome mostra nome e cognome in primo piano
 
 ```
 app/                pagine
-components/         UI; i toggle dell'appello sono in attendance-board.tsx
+components/         UI; i toggle dell'appello sono in attendance-board.tsx,
+                    le formazioni in match-lineups.tsx
 lib/actions/        server action per le scritture
-lib/auth.ts         requireProfile() e requireAdmin()
+lib/auth.ts         requireProfile(), requireSection(), guard()
+lib/permissions.ts  sezioni, livelli ed etichette della matrice
 utils/supabase/     client browser, server, middleware, admin
-middleware.ts       refresh sessione e gate pending/blocked/admin
+middleware.ts       refresh sessione e gate pending/blocked
 supabase/schema.sql   schema completo per installazioni nuove
 supabase/migration-002-archivi.sql     infortuni e archivi
 supabase/migration-003-joined-on.sql   allinea joined_on della rosa esistente
@@ -399,6 +531,9 @@ supabase/migration-006-accesso-atleti.sql  ruolo athlete, RLS per atleta
 supabase/migration-007-notifiche.sql   iscrizioni push e registro invii
 supabase/migration-008-partite.sql     avversario e ritrovo, eventi alla squadra
 supabase/migration-009-indirizzo.sql   indirizzo del campo per Maps
+supabase/migration-010-ruoli.sql       ruoli custom e permessi per sezione
+supabase/migration-011-formazioni.sql  formazioni di partita, risultato e marcature
+supabase/migration-012-non-convocato.sql  flag non convocato, assenza che non conta
 ```
 
 ## Requisiti

@@ -10,6 +10,11 @@ import { Busy, Spinner } from '@/components/spinner'
 import { enqueue, flush, pendingFor } from '@/lib/offline-queue'
 import type { Athlete, Event } from '@/lib/types'
 
+type AbsenceFlags = { injury: boolean; not_called: boolean }
+
+/** Assenza semplice: nessuno dei due attributi. */
+const NONE: AbsenceFlags = { injury: false, not_called: false }
+
 export function AttendanceBoard({
   event,
   athletes,
@@ -17,20 +22,35 @@ export function AttendanceBoard({
   userId,
   lockedAthleteId = null,
   canClose = true,
+  canMark = true,
 }: {
   event: Event
   athletes: Athlete[]
-  initialAbsent: { athlete_id: string; injury: boolean }[]
+  initialAbsent: { athlete_id: string; injury: boolean; not_called: boolean }[]
   userId: string
   /** Se valorizzato, in elenco compare solo questo giocatore: e' l'atleta
    *  che segna se stesso. I totali in testata restano quelli di squadra. */
   lockedAthleteId?: string | null
   /** Chiudere l'appello e' dello staff. */
   canClose?: boolean
+  /** 'Appello' in modifica nella matrice dei permessi: senza, sola lettura. */
+  canMark?: boolean
 }) {
   const supabase = useMemo(() => createClient(), [])
-  const [absent, setAbsent] = useState<Map<string, boolean>>(
-    () => new Map(initialAbsent.map((a) => [a.athlete_id, a.injury]))
+
+  /*
+   * Un'assenza ha due attributi che si escludono: l'infortunio (resta
+   * un'assenza, contata a parte) e il "non convocato" (l'evento esce
+   * proprio dai conti di quel giocatore).
+   */
+  const [absent, setAbsent] = useState<Map<string, AbsenceFlags>>(
+    () =>
+      new Map(
+        initialAbsent.map((a) => [
+          a.athlete_id,
+          { injury: a.injury, not_called: a.not_called },
+        ])
+      )
   )
 
   // Cio' che il server non ha ancora ricevuto vince su cio' che ha mandato:
@@ -42,7 +62,9 @@ export function AttendanceBoard({
     setAbsent((prev) => {
       const next = new Map(prev)
       for (const q of queued) {
-        q.absent ? next.set(q.athlete_id, q.injury) : next.delete(q.athlete_id)
+        q.absent
+          ? next.set(q.athlete_id, { injury: q.injury, not_called: q.not_called })
+          : next.delete(q.athlete_id)
       }
       return next
     })
@@ -72,25 +94,39 @@ export function AttendanceBoard({
    * modifica in coda offline: un rifiuto di permessi resterebbe in coda
    * per sempre, riprovato ogni 30 secondi e mai accettato.
    */
-  const canEdit = canClose || !closed
+  const canEdit = canMark && (canClose || !closed)
 
-  const present = athletes.length - absent.size
-  const injured = [...absent.values()].filter(Boolean).length
+  /*
+   * I non convocati escono dal denominatore: "18 presenti su 20" con due
+   * giocatori che nessuno aspettava non vuol dire niente.
+   */
+  const uncalled = [...absent.values()].filter((f) => f.not_called).length
+  const expected = athletes.length - uncalled
+  const missing = absent.size - uncalled
+  const present = expected - missing
+  const injured = [...absent.values()].filter((f) => f.injury).length
 
   /**
    * Scrive lo stato voluto per un atleta. Se la rete non risponde la
    * modifica finisce in coda invece di essere annullata: a bordo campo
    * un rollback silenzioso e' peggio di un'attesa dichiarata.
    */
-  async function persist(athleteId: string, isAbsent: boolean, injury: boolean) {
+  async function persist(
+    athleteId: string,
+    isAbsent: boolean,
+    flags: AbsenceFlags
+  ) {
+    const queued = {
+      event_id: event.id,
+      athlete_id: athleteId,
+      absent: isAbsent,
+      injury: flags.injury,
+      not_called: flags.not_called,
+      marked_by: userId,
+    }
+
     if (!navigator.onLine) {
-      enqueue({
-        event_id: event.id,
-        athlete_id: athleteId,
-        absent: isAbsent,
-        injury,
-        marked_by: userId,
-      })
+      enqueue(queued)
       return
     }
 
@@ -99,7 +135,8 @@ export function AttendanceBoard({
           {
             event_id: event.id,
             athlete_id: athleteId,
-            injury,
+            injury: flags.injury,
+            not_called: flags.not_called,
             marked_by: userId,
           },
           { onConflict: 'event_id,athlete_id' }
@@ -109,15 +146,7 @@ export function AttendanceBoard({
           .delete()
           .match({ event_id: event.id, athlete_id: athleteId })
 
-    if (error) {
-      enqueue({
-        event_id: event.id,
-        athlete_id: athleteId,
-        absent: isAbsent,
-        injury,
-        marked_by: userId,
-      })
-    }
+    if (error) enqueue(queued)
   }
 
   async function toggle(athleteId: string) {
@@ -126,17 +155,23 @@ export function AttendanceBoard({
     // Aggiorno subito: a bordo campo nessuno aspetta la rete.
     setAbsent((prev) => {
       const next = new Map(prev)
-      wasAbsent ? next.delete(athleteId) : next.set(athleteId, false)
+      wasAbsent ? next.delete(athleteId) : next.set(athleteId, NONE)
       return next
     })
     setFailed(null)
 
-    await persist(athleteId, !wasAbsent, false)
+    await persist(athleteId, !wasAbsent, NONE)
   }
 
-  /** L'infortunio e' un attributo dell'assenza, non un terzo stato. */
-  async function toggleInjury(athleteId: string) {
-    const next = !(absent.get(athleteId) ?? false)
+  /**
+   * Infortunio e "non convocato" sono attributi dell'assenza, non due
+   * terzi stati, e non stanno insieme: accenderne uno spegne l'altro.
+   */
+  async function setFlag(athleteId: string, flag: keyof AbsenceFlags) {
+    const current = absent.get(athleteId) ?? NONE
+    const next: AbsenceFlags = current[flag]
+      ? NONE
+      : { injury: flag === 'injury', not_called: flag === 'not_called' }
 
     setAbsent((prev) => new Map(prev).set(athleteId, next))
     setFailed(null)
@@ -199,15 +234,18 @@ export function AttendanceBoard({
           <span className="mini">Presenti</span>
           <span className="mt-1 block text-2xl" style={{ color: 'var(--color-text)' }}>
             {present}
-            <span style={{ color: 'var(--color-faint)' }}> / {athletes.length}</span>
+            <span style={{ color: 'var(--color-faint)' }}> / {expected}</span>
           </span>
         </span>
 
         <span className="flex flex-wrap items-center gap-2">
-          {absent.size > 0 && (
+          {missing > 0 && (
             <span className="tag fail">
-              {absent.size} {absent.size === 1 ? 'assente' : 'assenti'}
+              {missing} {missing === 1 ? 'assente' : 'assenti'}
             </span>
+          )}
+          {uncalled > 0 && (
+            <span className="tag">{uncalled} non convocati</span>
           )}
           {injured > 0 && (
             <span className="tag warn">
@@ -239,17 +277,24 @@ export function AttendanceBoard({
       )}
 
       <p className="mini border-b border-line px-4 py-2">
-        {!canEdit
-          ? 'Appello chiuso: non è più modificabile'
-          : lockedAthleteId
-            ? 'Tocca il tuo nome se non ci sarai'
-            : 'Tocca un nome per segnarlo assente'}
+        {!canMark
+          ? 'Hai accesso in sola lettura a questo appello'
+          : !canEdit
+            ? 'Appello chiuso: non è più modificabile'
+            : lockedAthleteId
+              ? 'Tocca il tuo nome se non ci sarai'
+              : 'Tocca un nome per segnarlo assente'}
       </p>
 
       <ul className="rows">
         {visible.map((a) => {
-          const isAbsent = absent.has(a.id)
-          const isInjured = absent.get(a.id) ?? false
+          const flags = absent.get(a.id)
+          const isAbsent = Boolean(flags)
+          const isInjured = flags?.injury ?? false
+          const isUncalled = flags?.not_called ?? false
+          // Il non convocato non e' un'assenza da evidenziare in rosso:
+          // e' qualcuno che nessuno stava aspettando.
+          const marked = isAbsent && !isUncalled
           return (
             <li key={a.id}>
               <button
@@ -257,20 +302,20 @@ export function AttendanceBoard({
                 onClick={() => toggle(a.id)}
                 disabled={!canEdit}
                 aria-pressed={isAbsent}
-                aria-label={`${fullName(a)}: ${isAbsent ? 'assente' : 'presente'}`}
+                aria-label={`${fullName(a)}: ${
+                  isUncalled ? 'non convocato' : isAbsent ? 'assente' : 'presente'
+                }`}
                 className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left"
                 style={{
                   minHeight: '58px',
-                  background: isAbsent ? 'rgba(255,68,51,.1)' : 'transparent',
-                  boxShadow: isAbsent
-                    ? 'inset 3px 0 0 0 var(--color-red)'
-                    : 'none',
-                  opacity: isAbsent ? 0.85 : 1,
+                  background: marked ? 'rgba(255,68,51,.1)' : 'transparent',
+                  boxShadow: marked ? 'inset 3px 0 0 0 var(--color-red)' : 'none',
+                  opacity: isAbsent ? (isUncalled ? 0.6 : 0.85) : 1,
                 }}
               >
                 <span
                   style={{
-                    textDecoration: isAbsent ? 'line-through' : 'none',
+                    textDecoration: marked ? 'line-through' : 'none',
                     textDecorationColor: 'var(--color-red)',
                   }}
                 >
@@ -278,31 +323,49 @@ export function AttendanceBoard({
                 </span>
 
                 <span
-                  className={isAbsent ? 'tag fail' : 'tag pass'}
+                  className={isUncalled ? 'tag' : isAbsent ? 'tag fail' : 'tag pass'}
                   style={{ flex: 'none' }}
                 >
-                  {isAbsent ? 'Assente' : 'Presente'}
+                  {isUncalled ? 'Non convocato' : isAbsent ? 'Assente' : 'Presente'}
                 </span>
               </button>
 
               {isAbsent && (
                 <div
                   className="flex flex-wrap items-center gap-3 px-4 pb-3"
-                  style={{ background: 'var(--absent-bg)' }}
+                  style={{ background: marked ? 'var(--absent-bg)' : 'transparent' }}
                 >
                   <button
                     type="button"
                     className="pill"
                     data-on={isInjured}
                     disabled={!canEdit}
-                    onClick={() => toggleInjury(a.id)}
+                    onClick={() => setFlag(a.id, 'injury')}
                     aria-pressed={isInjured}
                   >
                     {isInjured ? '✓ Infortunato' : 'Segna infortunio'}
                   </button>
-                  {isInjured && (
+
+                  {/* Il "non convocato" lo decide chi fa le convocazioni:
+                      all'atleta non si da' il modo di togliersi dai conti. */}
+                  {canClose && (
+                    <button
+                      type="button"
+                      className="pill"
+                      data-on={isUncalled}
+                      disabled={!canEdit}
+                      onClick={() => setFlag(a.id, 'not_called')}
+                      aria-pressed={isUncalled}
+                    >
+                      {isUncalled ? '✓ Non convocato' : 'Non convocato'}
+                    </button>
+                  )}
+
+                  {(isInjured || isUncalled) && (
                     <span className="text-sm" style={{ color: 'var(--muted)' }}>
-                      Resta un’assenza nelle percentuali, ma conteggiata a parte.
+                      {isInjured
+                        ? 'Resta un’assenza nelle percentuali, ma conteggiata a parte.'
+                        : 'Questo evento esce dalle sue percentuali: né presenza né assenza.'}
                     </span>
                   )}
                 </div>
@@ -322,7 +385,9 @@ export function AttendanceBoard({
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line p-4">
         <p className="text-sm" style={{ color: 'var(--color-muted)', maxWidth: '22rem' }}>
-          {!canClose
+          {!canMark
+            ? 'Stai guardando l’appello: per modificarlo serve il permesso «Appello: modifica».'
+            : !canClose
             ? closed
               ? 'L’appello è stato chiuso dall’allenatore: la tua presenza è registrata.'
               : 'Puoi cambiare idea finché l’allenatore non chiude l’appello.'

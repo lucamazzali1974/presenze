@@ -1,10 +1,13 @@
 import { TeamManager } from '@/components/team-manager'
+import { requireSection } from '@/lib/auth'
+import { canEdit } from '@/lib/permissions'
 import { createClient } from '@/utils/supabase/server'
 import type { Athlete, Team, TeamMember } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
 export default async function TeamsPage() {
+  const { perms } = await requireSection('squadre')
   const supabase = await createClient()
 
   const [teamsRes, athletesRes, membersRes, eventsRes] = await Promise.all([
@@ -38,6 +41,7 @@ export default async function TeamsPage() {
       members={(membersRes.data ?? []) as TeamMember[]}
       eventCount={eventCount}
       loadError={error}
+      canEdit={canEdit(perms, 'squadre')}
     />
   )
 }

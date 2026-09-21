@@ -1,32 +1,33 @@
 import { Nav } from '@/components/nav'
 import { PasswordForm } from '@/components/password-form'
 import { PushToggle } from '@/components/push-toggle'
-import { isStaff, myAthlete, requireProfile } from '@/lib/auth'
+import { isStaff, myAthlete, requireAccess } from '@/lib/auth'
+import { createClient } from '@/utils/supabase/server'
 import { emailToUsername, isAthleteEmail } from '@/lib/username'
 import { fullName } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
 
-const ROLE_LABEL: Record<string, string> = {
-  admin: 'Amministratore',
-  user: 'Allenatore',
-  athlete: 'Giocatore',
-}
-
 export default async function ProfiloPage() {
-  const profile = await requireProfile()
+  const { profile, perms } = await requireAccess()
   const me = await myAthlete(profile)
+
+  // Il nome del ruolo arriva dalla tabella: e' quello che l'admin ha scelto.
+  const supabase = await createClient()
+  const { data: role } = profile.role_id
+    ? await supabase.from('roles').select('name').eq('id', profile.role_id).maybeSingle()
+    : { data: null }
 
   return (
     <>
-      <Nav profile={profile} />
+      <Nav perms={perms} />
 
       <main className="wrap pb-16" style={{ maxWidth: '560px' }}>
         <div className="page-head">
           <p className="eyebrow">// Profilo</p>
           <h1 className="h1">{profile.full_name || 'Il tuo accesso'}</h1>
           <p className="sub">
-            {ROLE_LABEL[profile.role] ?? profile.role}
+            {(role as { name: string } | null)?.name ?? 'Senza ruolo'}
             {me ? ` · scheda di ${fullName(me)}` : ''}
           </p>
         </div>

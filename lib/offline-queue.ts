@@ -17,6 +17,8 @@ export type QueueEntry = {
   athlete_id: string
   absent: boolean
   injury: boolean
+  /** Assenza dichiarata "non convocato": non entra nelle percentuali. */
+  not_called: boolean
   marked_by: string
   at: number
 }
@@ -84,6 +86,7 @@ export async function flush(supabase: SupabaseClient) {
               event_id: entry.event_id,
               athlete_id: entry.athlete_id,
               injury: entry.injury,
+              not_called: entry.not_called,
               marked_by: entry.marked_by,
             },
             { onConflict: 'event_id,athlete_id' }

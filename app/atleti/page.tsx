@@ -1,6 +1,7 @@
 import { Nav } from '@/components/nav'
 import { AthleteManager } from '@/components/athlete-manager'
-import { isStaff, myAthlete, requireProfile } from '@/lib/auth'
+import { isStaff, myAthlete, requireSection } from '@/lib/auth'
+import { canEdit } from '@/lib/permissions'
 import { createClient } from '@/utils/supabase/server'
 import { hasAdminKey } from '@/utils/supabase/admin'
 import type { Athlete, Profile, Team, TeamMember } from '@/lib/types'
@@ -8,25 +9,27 @@ import type { Athlete, Profile, Team, TeamMember } from '@/lib/types'
 export const dynamic = 'force-dynamic'
 
 export default async function AthletesPage() {
-  const profile = await requireProfile()
-  const isAdmin = profile.role === 'admin'
+  const { profile, perms } = await requireSection('atleti')
+  const canManageRoster = canEdit(perms, 'atleti')
+  // Gli accessi dei giocatori sono account: seguono la sezione Utenti.
+  const canManageAccounts = canEdit(perms, 'utenti')
   const supabase = await createClient()
 
   const me = await myAthlete(profile)
   const staff = isStaff(profile)
 
-  // Chi non e' admin vede solo chi e' effettivamente in rosa.
+  // Chi non gestisce la rosa vede solo chi e' effettivamente in rosa.
   let query = supabase.from('athletes').select('*')
-  if (!isAdmin) query = query.eq('active', true)
+  if (!canManageRoster) query = query.eq('active', true)
 
   const [{ data }, { data: teams }, { data: members }, { data: profiles }] =
     await Promise.all([
       query.order('active', { ascending: false }).order('last_name', { ascending: true }),
       supabase.from('teams').select('*').order('name', { ascending: true }),
       supabase.from('team_members').select('*'),
-      // Solo l'admin legge i profili altrui: per gli altri la RLS
-      // restituirebbe comunque il solo profilo proprio.
-      isAdmin
+      // I profili altrui li legge chi ha la sezione Utenti: per gli altri
+      // la RLS restituirebbe comunque il solo profilo proprio.
+      canManageAccounts
         ? supabase.from('profiles').select('*')
         : Promise.resolve({ data: null }),
     ])
@@ -80,14 +83,15 @@ export default async function AthletesPage() {
 
   return (
     <>
-      <Nav profile={profile} />
+      <Nav perms={perms} />
       <AthleteManager
         athletes={visible}
         teamsOf={teamsOf}
         hasTeams={((teams ?? []) as Team[]).length > 0}
         accountOf={accountOf}
-        canCreateAccounts={isAdmin && hasAdminKey()}
-        isAdmin={isAdmin}
+        canCreateAccounts={canManageAccounts && hasAdminKey()}
+        canEdit={canManageRoster}
+        canManageAccounts={canManageAccounts}
       />
     </>
   )

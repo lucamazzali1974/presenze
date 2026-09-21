@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { Nav } from '@/components/nav'
 import { EventSwitch } from '@/components/event-switch'
-import { isStaff, myAthlete, requireProfile } from '@/lib/auth'
+import { isStaff, myAthlete, requireSection } from '@/lib/auth'
+import { canEdit } from '@/lib/permissions'
 import { createClient } from '@/utils/supabase/server'
 import type { Athlete, Event, EventType, Team } from '@/lib/types'
 
@@ -12,13 +13,15 @@ export default async function Home({
 }: {
   searchParams: Promise<{ team?: string }>
 }) {
-  const profile = await requireProfile()
+  const { profile, perms } = await requireSection('appello')
   const supabase = await createClient()
   const params = await searchParams
 
   // L'atleta compila solo se stesso; lo staff compila tutti.
   const me = await myAthlete(profile)
   const staff = isStaff(profile)
+  // 'Appello' in sola lettura: il tabellone si vede, i nomi non si toccano.
+  const canMark = canEdit(perms, 'appello')
 
   const [{ data: athletesData }, { data: teamsData }, { data: membersData }] =
     await Promise.all([
@@ -60,7 +63,7 @@ export default async function Home({
   async function nextEvent(type: EventType) {
     let query = supabase
       .from('events')
-      .select('*, absences(athlete_id, injury)')
+      .select('*, absences(athlete_id, injury, not_called)')
       .eq('type', type)
       .is('archive_id', null)
       .gte('starts_at', since)
@@ -88,7 +91,7 @@ export default async function Home({
      * della home, che a bordo campo col 3G si sentono.
      */
     const row = data as Event & {
-      absences?: { athlete_id: string; injury: boolean }[]
+      absences?: { athlete_id: string; injury: boolean; not_called: boolean }[]
     }
 
     const event = row as Event
@@ -106,7 +109,11 @@ export default async function Home({
 
     return {
       event,
-      absent: absences as { athlete_id: string; injury: boolean }[],
+      absent: absences as {
+        athlete_id: string
+        injury: boolean
+        not_called: boolean
+      }[],
       roster: called,
       teamName: event.team_id
         ? (teams.find((t) => t.id === event.team_id)?.name ?? 'Squadra rimossa')
@@ -118,7 +125,7 @@ export default async function Home({
 
   return (
     <>
-      <Nav profile={profile} />
+      <Nav perms={perms} />
 
       <main className="wrap pb-16">
         <div className="page-head">
@@ -174,7 +181,7 @@ export default async function Home({
             <p style={{ color: 'var(--color-muted)' }}>
               Senza giocatori non c’è appello da fare.
             </p>
-            {profile.role === 'admin' && (
+            {canEdit(perms, 'atleti') && (
               <Link href="/atleti" className="btn btn-primary mt-5">
                 Aggiungi i giocatori
               </Link>
@@ -187,7 +194,8 @@ export default async function Home({
             match={match}
             userId={profile.id}
             lockedAthleteId={staff ? null : (me?.id ?? null)}
-            canClose={staff}
+            canClose={staff && canMark}
+            canMark={canMark}
           />
         )}
       </main>

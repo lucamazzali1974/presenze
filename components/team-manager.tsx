@@ -18,12 +18,15 @@ export function TeamManager({
   members,
   eventCount,
   loadError = null,
+  canEdit = true,
 }: {
   teams: Team[]
   athletes: Athlete[]
   members: TeamMember[]
   eventCount: Record<string, number>
   loadError?: string | null
+  /** Con 'Squadre' in sola lettura la pagina si vede, i comandi no. */
+  canEdit?: boolean
 }) {
   const formRef = useRef<HTMLFormElement>(null)
   const [showForm, setShowForm] = useState(false)
@@ -62,19 +65,21 @@ export function TeamManager({
           partita senza squadra vale per tutti.
         </p>
 
-        <button
-          type="button"
-          className="btn btn-primary mt-5"
-          onClick={() => {
-            setError(null)
-            setShowForm((v) => !v)
-          }}
-        >
-          {showForm ? 'Annulla' : 'Aggiungi squadra'}
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            className="btn btn-primary mt-5"
+            onClick={() => {
+              setError(null)
+              setShowForm((v) => !v)
+            }}
+          >
+            {showForm ? 'Annulla' : 'Aggiungi squadra'}
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {showForm && canEdit && (
         <form
           ref={formRef}
           action={(formData) =>
@@ -115,7 +120,7 @@ export function TeamManager({
 
           return (
             <li key={t.id} className="row">
-              {editing === t.id ? (
+              {editing === t.id && canEdit ? (
                 <form
                   action={(formData) =>
                     run(() => renameTeam(t.id, formData), () => setEditing(null))
@@ -158,42 +163,50 @@ export function TeamManager({
                         setRoster(roster === t.id ? null : t.id)
                       }}
                     >
-                      {roster === t.id ? 'Chiudi rosa' : 'Gestisci rosa'}
+                      {roster === t.id
+                        ? 'Chiudi rosa'
+                        : canEdit
+                          ? 'Gestisci rosa'
+                          : 'Vedi la rosa'}
                     </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() => {
-                        setError(null)
-                        setEditing(t.id)
-                      }}
-                    >
-                      Rinomina
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      disabled={isPending}
-                      onClick={() => run(() => toggleTeamActive(t.id, !t.active))}
-                    >
-                      {t.active ? 'Disattiva' : 'Riattiva'}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-danger"
-                      disabled={isPending}
-                      onClick={() => {
-                        if (
-                          confirm(
-                            `Eliminare ${t.name}? Gli atleti restano, e i suoi eventi tornano validi per tutta la rosa. Le presenze gia' registrate non si toccano.`
-                          )
-                        ) {
-                          run(() => deleteTeam(t.id))
-                        }
-                      }}
-                    >
-                      Elimina
-                    </button>
+                    {canEdit && (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => {
+                            setError(null)
+                            setEditing(t.id)
+                          }}
+                        >
+                          Rinomina
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          disabled={isPending}
+                          onClick={() => run(() => toggleTeamActive(t.id, !t.active))}
+                        >
+                          {t.active ? 'Disattiva' : 'Riattiva'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-danger"
+                          disabled={isPending}
+                          onClick={() => {
+                            if (
+                              confirm(
+                                `Eliminare ${t.name}? Gli atleti restano, e i suoi eventi tornano validi per tutta la rosa. Le presenze gia' registrate non si toccano.`
+                              )
+                            ) {
+                              run(() => deleteTeam(t.id))
+                            }
+                          }}
+                        >
+                          Elimina
+                        </button>
+                      </>
+                    )}
                   </div>
 
                   {roster === t.id && (
@@ -201,6 +214,7 @@ export function TeamManager({
                       athletes={athletes}
                       selected={rosterSet}
                       pending={isPending}
+                      readOnly={!canEdit}
                       onSave={(ids) =>
                         run(() => setTeamMembers(t.id, ids), () => setRoster(null))
                       }
@@ -228,11 +242,13 @@ function RosterPicker({
   selected,
   pending,
   onSave,
+  readOnly = false,
 }: {
   athletes: Athlete[]
   selected: Set<string>
   pending: boolean
   onSave: (ids: string[]) => void
+  readOnly?: boolean
 }) {
   const [picked, setPicked] = useState<Set<string>>(() => new Set(selected))
 
@@ -249,12 +265,13 @@ function RosterPicker({
       <p className="mini mb-2">Chi fa parte di questa squadra</p>
 
       <div className="flex flex-wrap gap-2">
-        {athletes.map((a) => (
+        {(readOnly ? athletes.filter((a) => picked.has(a.id)) : athletes).map((a) => (
           <label key={a.id} className="day" style={{ width: 'auto', padding: '0 14px' }}>
             <input
               type="checkbox"
               className="sr-only"
               checked={picked.has(a.id)}
+              disabled={readOnly}
               onChange={() => toggle(a.id)}
             />
             <AthleteName athlete={a} />
@@ -268,19 +285,25 @@ function RosterPicker({
         </p>
       )}
 
-      <div className="row-actions">
-        <button
-          type="button"
-          className="btn btn-sm btn-primary"
-          disabled={pending}
-          onClick={() => onSave([...picked])}
-        >
-          Salva rosa
-        </button>
-        <button type="button" className="btn btn-sm" onClick={() => setPicked(new Set(selected))}>
-          Ripristina
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="row-actions">
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            disabled={pending}
+            onClick={() => onSave([...picked])}
+          >
+            Salva rosa
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => setPicked(new Set(selected))}
+          >
+            Ripristina
+          </button>
+        </div>
+      )}
     </div>
   )
 }

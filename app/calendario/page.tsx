@@ -1,10 +1,10 @@
 import Link from 'next/link'
 import { Nav } from '@/components/nav'
-import { isStaff, myAthlete, requireProfile } from '@/lib/auth'
+import { isStaff, myAthlete, requireSection } from '@/lib/auth'
 import { createClient } from '@/utils/supabase/server'
 import { EVENT_LABEL, dayStamp, formatEventTime, monthLabel } from '@/lib/format'
 import { mapsUrl } from '@/lib/maps'
-import type { Event, Team } from '@/lib/types'
+import type { Event, Lineup, LineupMember, Team } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
  * l'appello. Le modifiche al calendario restano agli admin.
  */
 export default async function CalendarioPage() {
-  const profile = await requireProfile()
+  const { profile, perms } = await requireSection('calendario')
   const supabase = await createClient()
 
   const me = await myAthlete(profile)
@@ -51,19 +51,57 @@ export default async function CalendarioPage() {
     (e) => staff || !me || e.team_id === null || myTeams.has(e.team_id)
   )
 
+  /*
+   * Le formazioni delle partite in programma. Al concentramento ogni
+   * squadra ha il suo orario: al giocatore si mostra quello della sua,
+   * non quello generico della giornata.
+   */
+  const matchIds = events.filter((e) => e.type === 'match').map((e) => e.id)
+
+  const [{ data: lineupsData }, { data: lineupMembersData }] =
+    matchIds.length > 0
+      ? await Promise.all([
+          supabase.from('lineups').select('*').in('event_id', matchIds).order('sort'),
+          supabase.from('lineup_members').select('*').in('event_id', matchIds),
+        ])
+      : [{ data: null }, { data: null }]
+
+  const lineups = (lineupsData ?? []) as Lineup[]
+  const lineupMembers = (lineupMembersData ?? []) as LineupMember[]
+
+  // La formazione del giocatore, partita per partita.
+  const myLineup = new Map<string, string>()
+  if (me) {
+    for (const m of lineupMembers) {
+      if (m.athlete_id === me.id) myLineup.set(m.event_id, m.lineup_id)
+    }
+  }
+
+  function lineupsOf(eventId: string) {
+    const all = lineups.filter((l) => l.event_id === eventId)
+    if (!me || staff) return all
+
+    // Il giocatore vede la propria; se non e' convocato, nessuna.
+    const mine = myLineup.get(eventId)
+    return mine ? all.filter((l) => l.id === mine) : []
+  }
+
   // Dove il giocatore si e' gia' segnato assente.
   const { data: absencesData } = me
     ? await supabase
         .from('absences')
-        .select('event_id, injury')
+        .select('event_id, injury, not_called')
         .eq('athlete_id', me.id)
     : { data: null }
 
   const absences = new Map(
-    ((absencesData ?? []) as { event_id: string; injury: boolean }[]).map((a) => [
-      a.event_id,
-      a.injury,
-    ])
+    (
+      (absencesData ?? []) as {
+        event_id: string
+        injury: boolean
+        not_called: boolean
+      }[]
+    ).map((a) => [a.event_id, a])
   )
 
   const groups: { label: string; events: Event[] }[] = []
@@ -76,7 +114,7 @@ export default async function CalendarioPage() {
 
   return (
     <>
-      <Nav profile={profile} />
+      <Nav perms={perms} />
 
       <main className="wrap pb-16">
         <div className="page-head">
@@ -97,7 +135,7 @@ export default async function CalendarioPage() {
 
             <ul className="panel rows">
               {group.events.map((e) => {
-                const absent = absences.has(e.id)
+                const mark = absences.get(e.id)
                 const isMatch = e.type === 'match'
 
                 return (
@@ -127,17 +165,38 @@ export default async function CalendarioPage() {
                           </span>
                         )}
                         {me && (
-                          <span className={absent ? 'tag fail' : 'tag pass'}>
-                            {absent
-                              ? absences.get(e.id)
-                                ? 'Assente · infortunio'
-                                : 'Assente'
-                              : 'Presente'}
+                          <span
+                            className={
+                              !mark
+                                ? 'tag pass'
+                                : mark.not_called
+                                  ? 'tag'
+                                  : 'tag fail'
+                            }
+                          >
+                            {!mark
+                              ? 'Presente'
+                              : mark.not_called
+                                ? 'Non convocato'
+                                : mark.injury
+                                  ? 'Assente · infortunio'
+                                  : 'Assente'}
                           </span>
                         )}
                         {e.closed_at && <span className="tag">Appello chiuso</span>}
                       </span>
                     </div>
+
+                    {isMatch && lineupsOf(e.id).length > 0 && (
+                      <p className="mt-2 flex flex-wrap gap-2">
+                        {lineupsOf(e.id).map((l) => (
+                          <span key={l.id} className="tag info">
+                            {l.name} · {formatEventTime(l.starts_at ?? e.starts_at)}
+                            {l.meet_at && ` · ritrovo ${formatEventTime(l.meet_at)}`}
+                          </span>
+                        ))}
+                      </p>
+                    )}
 
                     {isMatch ? (
                       /* Per una partita i dati sono tanti e contano tutti:

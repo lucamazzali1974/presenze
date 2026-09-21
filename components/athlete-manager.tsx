@@ -24,7 +24,8 @@ export function AthleteManager({
   hasTeams = false,
   accountOf = {},
   canCreateAccounts = false,
-  isAdmin,
+  canEdit,
+  canManageAccounts = false,
 }: {
   athletes: Athlete[]
   teamsOf?: Record<string, string[]>
@@ -33,7 +34,10 @@ export function AthleteManager({
   accountOf?: Record<string, Profile>
   /** Serve SUPABASE_SECRET_KEY: senza, gli accessi non si creano. */
   canCreateAccounts?: boolean
-  isAdmin: boolean
+  /** 'Atleti' in modifica: anagrafica della rosa. */
+  canEdit: boolean
+  /** 'Utenti' in modifica: creare e togliere gli accessi dei giocatori. */
+  canManageAccounts?: boolean
 }) {
   const formRef = useRef<HTMLFormElement>(null)
   const [error, setError] = useState<string | null>(null)
@@ -76,7 +80,7 @@ export function AthleteManager({
           {inRosa} in rosa{fuori > 0 && ` · ${fuori} fuori rosa`}
         </p>
 
-        {isAdmin && (
+        {canEdit && (
           <button
             type="button"
             className="btn btn-primary mt-5"
@@ -87,7 +91,7 @@ export function AthleteManager({
         )}
       </div>
 
-      {isAdmin && showForm && (
+      {canEdit && showForm && (
         <form ref={formRef} action={submitCreate} className="panel mb-4 p-4">
           <div className="grid-2">
             <label className="field">
@@ -224,7 +228,7 @@ export function AthleteManager({
                   </p>
                 )}
 
-                {isAdmin && (
+                {canManageAccounts && (
                   <p className="mt-2 flex flex-wrap items-center gap-2">
                     {accountOf[a.id] ? (
                       <>
@@ -243,7 +247,7 @@ export function AthleteManager({
                   </p>
                 )}
 
-                {isAdmin && (
+                {canEdit && (
                   <div className="row-actions">
                     <button
                       type="button"
@@ -252,21 +256,23 @@ export function AthleteManager({
                     >
                       Modifica
                     </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() => {
-                        setError(null)
-                        setNotice(null)
-                        setAccount(account === a.id ? null : a.id)
-                      }}
-                    >
-                      {account === a.id
-                        ? 'Chiudi accesso'
-                        : accountOf[a.id]
-                          ? 'Gestisci accesso'
-                          : 'Crea accesso'}
-                    </button>
+                    {canManageAccounts && (
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={() => {
+                          setError(null)
+                          setNotice(null)
+                          setAccount(account === a.id ? null : a.id)
+                        }}
+                      >
+                        {account === a.id
+                          ? 'Chiudi accesso'
+                          : accountOf[a.id]
+                            ? 'Gestisci accesso'
+                            : 'Crea accesso'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn btn-sm"
@@ -300,7 +306,7 @@ export function AthleteManager({
                   </div>
                 )}
 
-                {isAdmin && account === a.id && (
+                {canManageAccounts && account === a.id && (
                   <AccountPanel
                     athlete={a}
                     account={accountOf[a.id] ?? null}
@@ -350,7 +356,7 @@ export function AthleteManager({
         {visible.length === 0 && (
           <li className="empty">
             {athletes.length === 0
-              ? isAdmin
+              ? canEdit
                 ? 'La rosa è vuota. Aggiungi il primo giocatore.'
                 : 'La rosa è ancora vuota.'
               : 'Nessun giocatore corrisponde alla ricerca.'}

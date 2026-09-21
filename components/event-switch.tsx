@@ -7,7 +7,7 @@ import type { Athlete, Event } from '@/lib/types'
 
 type Board = {
   event: Event
-  absent: { athlete_id: string; injury: boolean }[]
+  absent: { athlete_id: string; injury: boolean; not_called: boolean }[]
   /** I convocati: la rosa della squadra dell'evento, o tutti se non ne ha. */
   roster: Athlete[]
   teamName: string | null
@@ -19,12 +19,14 @@ export function EventSwitch({
   userId,
   lockedAthleteId = null,
   canClose = true,
+  canMark = true,
 }: {
   training: Board
   match: Board
   userId: string
   lockedAthleteId?: string | null
   canClose?: boolean
+  canMark?: boolean
 }) {
   // Il prossimo in ordine di tempo e' quello che si apre per primo.
   const soonest =
@@ -71,6 +73,7 @@ export function EventSwitch({
           userId={userId}
           lockedAthleteId={lockedAthleteId}
           canClose={canClose}
+          canMark={canMark}
         />
       ) : (
         <div className="panel mt-5">

@@ -1,10 +1,14 @@
 import { EventManager } from '@/components/event-manager'
+import { requireSection } from '@/lib/auth'
 import { createClient } from '@/utils/supabase/server'
 import type { Event, Team } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AdminEventsPage() {
+  // La pagina di gestione vuole il permesso di modifica: chi ha solo la
+  // lettura resta su /calendario.
+  await requireSection('calendario', 'edit')
   const supabase = await createClient()
   const now = new Date().toISOString()
 

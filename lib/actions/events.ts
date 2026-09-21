@@ -2,8 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
-import { requireAdmin, requireProfile } from '@/lib/auth'
+import { guard } from '@/lib/auth'
 import { localToISO } from '@/lib/format'
+import type { ActionResult } from '@/lib/types'
 
 /** Stringa vuota dal <select> = "tutta la societa'", cioe' team_id null. */
 function readTeamId(formData: FormData) {
@@ -30,8 +31,9 @@ function readMatchFields(formData: FormData, type: string, date: string) {
   }
 }
 
-export async function createEvent(formData: FormData) {
-  await requireAdmin()
+export async function createEvent(formData: FormData): Promise<ActionResult> {
+  const denied = await guard('calendario')
+  if (denied) return denied
   const supabase = await createClient()
 
   const type = String(formData.get('type') ?? 'training')
@@ -68,8 +70,9 @@ export async function createEvent(formData: FormData) {
   return { ok: true }
 }
 
-export async function createRecurringEvents(formData: FormData) {
-  await requireAdmin()
+export async function createRecurringEvents(formData: FormData): Promise<ActionResult> {
+  const denied = await guard('calendario')
+  if (denied) return denied
   const supabase = await createClient()
 
   const type = String(formData.get('type') ?? 'training')
@@ -107,8 +110,9 @@ export async function createRecurringEvents(formData: FormData) {
   return { ok: true }
 }
 
-export async function updateEvent(id: string, formData: FormData) {
-  await requireAdmin()
+export async function updateEvent(id: string, formData: FormData): Promise<ActionResult> {
+  const denied = await guard('calendario')
+  if (denied) return denied
   const supabase = await createClient()
 
   const type = String(formData.get('type') ?? 'training')
@@ -148,8 +152,9 @@ export async function updateEvent(id: string, formData: FormData) {
   return { ok: true }
 }
 
-export async function deleteEvent(id: string) {
-  await requireAdmin()
+export async function deleteEvent(id: string): Promise<ActionResult> {
+  const denied = await guard('calendario')
+  if (denied) return denied
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -169,8 +174,9 @@ export async function deleteEvent(id: string) {
   return { ok: true }
 }
 
-export async function deleteSeries(seriesId: string) {
-  await requireAdmin()
+export async function deleteSeries(seriesId: string): Promise<ActionResult> {
+  const denied = await guard('calendario')
+  if (denied) return denied
   const supabase = await createClient()
 
   // Cancella solo le occorrenze future: quelle passate hanno gia' un appello.
@@ -188,8 +194,9 @@ export async function deleteSeries(seriesId: string) {
 }
 
 /** Chiude l'appello: da qui in poi l'evento entra nelle statistiche. */
-export async function setEventClosed(id: string, closed: boolean) {
-  await requireProfile()
+export async function setEventClosed(id: string, closed: boolean): Promise<ActionResult> {
+  const denied = await guard('appello')
+  if (denied) return denied
   const supabase = await createClient()
 
   // Passa da una funzione con security definer invece che da un update

@@ -46,7 +46,7 @@ export async function updateSession(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, status')
+    .select('status')
     .eq('id', user.id)
     .single()
 
@@ -62,10 +62,13 @@ export async function updateSession(request: NextRequest) {
     return redirectTo('/', request, supabaseResponse)
   }
 
-  if (path.startsWith('/admin') && profile?.role !== 'admin') {
-    return redirectTo('/', request, supabaseResponse)
-  }
-
+  /*
+   * Le sezioni non le decide piu' il middleware: ogni pagina dichiara
+   * quale le serve e chiama requireSection(), che manda chi non ce l'ha
+   * sulla prima pagina che gli spetta. Qui servirebbe una chiamata in
+   * piu' al database a ogni richiesta per rifare lo stesso controllo, e
+   * due elenchi di regole da tenere allineati. Sotto c'e' comunque la RLS.
+   */
   return supabaseResponse
 }
 
