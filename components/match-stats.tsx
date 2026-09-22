@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { AthleteName } from '@/components/athlete-name'
-import { dayStamp } from '@/lib/format'
+import { BarRow } from '@/components/charts'
+import { dayStamp, displayName } from '@/lib/format'
 import type { Athlete, MatchResult } from '@/lib/types'
 import type { StatsRow } from '@/components/stats-view'
 
@@ -61,6 +62,7 @@ export function MatchStats({
   const draws = played.filter((r) => r.outcome === 'draw').length
   const losses = played.filter((r) => r.outcome === 'loss').length
 
+  const top = data.scorers[0]?.points ?? 0
   const pf = played.reduce((n, r) => n + (r.points_for ?? 0), 0)
   const pa = played.reduce((n, r) => n + (r.points_against ?? 0), 0)
 
@@ -146,35 +148,44 @@ export function MatchStats({
       )}
 
       {block === 'marcatori' && (
-        <ul className="panel rows">
-          {data.scorers.map((s, i) => (
-            <li key={s.athlete_id} className="row">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="flex items-baseline gap-2">
-                  <span className="mini" style={{ minWidth: '1.5rem' }}>
-                    {i + 1}
-                  </span>
-                  <AthleteName athlete={s.athlete} />
-                </span>
-                <span className="tag pass">{s.points} punti</span>
-              </div>
+        <div className="panel">
+          <div className="panel-head">
+            <span className="mini">Punti segnati</span>
+            <span className="mini">
+              {data.scorers.reduce((n, s) => n + s.tries, 0)} mete in tutto
+            </span>
+          </div>
 
-              <p className="mini mt-2">
-                {s.tries} mete
-                {s.conversions > 0 && ` · ${s.conversions} trasformazioni`}
-                {s.penalties > 0 && ` · ${s.penalties} piazzati`}
-                {s.drops > 0 && ` · ${s.drops} drop`}
+          {/* Le barre sono in proporzione al primo della classifica: il
+              confronto utile e' fra compagni, non con un massimo teorico. */}
+          <div className="chart">
+            {data.scorers.map((s) => (
+              <BarRow
+                key={s.athlete_id}
+                label={displayName(s.athlete)}
+                value={`${s.points}`}
+                bars={[
+                  {
+                    pct: top > 0 ? (100 * s.points) / top : 0,
+                    serie: 1,
+                    title: `${s.tries} mete${
+                      s.conversions > 0 ? `, ${s.conversions} trasformazioni` : ''
+                    }${s.penalties > 0 ? `, ${s.penalties} piazzati` : ''}${
+                      s.drops > 0 ? `, ${s.drops} drop` : ''
+                    } · ${s.points} punti`,
+                  },
+                ]}
+              />
+            ))}
+
+            {data.scorers.length === 0 && (
+              <p className="empty">
+                Nessuna marcatura registrata. Si segnano dalla pagina della
+                partita, formazione per formazione.
               </p>
-            </li>
-          ))}
-
-          {data.scorers.length === 0 && (
-            <li className="empty">
-              Nessuna marcatura registrata. Si segnano dalla pagina della
-              partita, formazione per formazione.
-            </li>
-          )}
-        </ul>
+            )}
+          </div>
+        </div>
       )}
 
       {block === 'atleti' && (

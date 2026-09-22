@@ -9,6 +9,7 @@ import {
   SCORE_POINTS,
   type Athlete,
   type AttendanceStatRow,
+  type EventAttendance,
   type EventType,
   type MatchResult,
   type Score,
@@ -47,6 +48,17 @@ export default async function StatsPage({
     supabase.from('teams').select('*').order('name', { ascending: true }),
     supabase.from('team_members').select('*'),
   ])
+
+  // L'affluenza appello per appello: la materia prima dei grafici.
+  // "Attesi" qui vuol dire la stessa cosa che vuol dire nelle percentuali
+  // — squadra, ingresso in rosa, giorni previsti, non convocati — perche'
+  // il conto lo fa la stessa vista, non l'app.
+  const { data: attendanceData } = await supabase
+    .from('event_attendance')
+    .select('*')
+    .order('starts_at', { ascending: true })
+
+  const allAttendance = (attendanceData ?? []) as EventAttendance[]
 
   // Le partite a referto: una riga per formazione giocata.
   const { data: resultsData } = await supabase
@@ -148,6 +160,10 @@ export default async function StatsPage({
     ? allResults.filter((r) => r.team_id === team || r.team_id === null)
     : allResults
 
+  const attendance = team
+    ? allAttendance.filter((e) => e.team_id === team || e.team_id === null)
+    : allAttendance
+
   const visibleLineups = new Set(results.map((r) => r.lineup_id))
   const athleteById = new Map(athletes.map((a) => [a.id, a]))
 
@@ -220,6 +236,7 @@ export default async function StatsPage({
         canArchive={canEdit(perms, 'archivio')}
         selfOnly={!staff}
         matches={matches}
+        events={attendance}
       />
     </>
   )

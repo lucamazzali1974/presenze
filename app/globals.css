@@ -41,6 +41,11 @@
   --green: #00d084;
   --amber: #fcb900;
   --blue: #0693e3;
+  /* Serie dei grafici. Non sono --blue e --amber: quelle due, sul fondo
+     nero, escono dalla banda di luminosita' e la coppia non regge il
+     test daltonismo. Queste due sono la versione validata. */
+  --serie-1: #0693e3;
+  --serie-2: #b88200;
   --topbar: rgba(0, 0, 0, 0.82);
   --absent-bg: rgba(255, 68, 51, 0.1);
   --track: rgba(255, 255, 255, 0.12);
@@ -63,6 +68,8 @@ html.light {
   --green: #00885c;
   --amber: #9a6d00;
   --blue: #0868a8;
+  --serie-1: #0868a8;
+  --serie-2: #9a6d00;
   --topbar: rgba(255, 255, 255, 0.85);
   --absent-bg: rgba(216, 31, 16, 0.07);
   --track: rgba(0, 0, 0, 0.1);
@@ -1049,4 +1056,174 @@ a.pill[data-on='true']:hover {
   .topbar .topnav {
     display: none;
   }
+}
+
+/* ── grafici a barre ─────────────────────── */
+
+.chart {
+  padding: 16px 18px;
+}
+
+/* Barre orizzontali: etichetta, barra, valore. La colonna dei nomi ha
+   una larghezza fissa, altrimenti le barre partono da punti diversi e
+   non sono piu' confrontabili a occhio. */
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(0, 8rem) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+}
+
+.bar-row + .bar-row {
+  border-top: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+}
+
+.bar-name {
+  font-size: 14px;
+  color: var(--par);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar-value {
+  font-size: 13px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  min-width: 3.5rem;
+  text-align: right;
+}
+
+.bar-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bar-track {
+  position: relative;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+/* Estremita' arrotondata solo dove finisce il dato: l'attacco resta
+   sulla linea di partenza, cosi' barre corte e lunghe si confrontano. */
+.bar-fill {
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  background: var(--serie-1);
+  min-width: 2px;
+}
+
+.bar-fill[data-serie='2'] {
+  background: var(--serie-2);
+}
+
+.bar-fill[data-tone='good'] {
+  background: var(--green);
+}
+.bar-fill[data-tone='warn'] {
+  background: var(--amber);
+}
+.bar-fill[data-tone='bad'] {
+  background: var(--red);
+}
+
+/* Colonne: una per evento o per mese. Il gap di 2px e' il distanziatore
+   che tiene separate due barre adiacenti senza una linea in mezzo. */
+.cols {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 150px;
+  padding-top: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.col {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 6px;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: default;
+}
+
+.col i {
+  display: block;
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  background: var(--serie-1);
+  min-height: 2px;
+}
+
+.col:hover i {
+  background: var(--text);
+}
+
+/* Le etichette sotto le colonne: quando sono tante se ne mostra una ogni
+   tot, il resto resta nel tooltip. */
+.col-labels {
+  display: flex;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.col-labels span {
+  flex: 1 1 0;
+  min-width: 6px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 0 18px 12px;
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.legend i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--serie-1);
+  flex: none;
+}
+
+.legend i[data-serie='2'] {
+  background: var(--serie-2);
+}
+
+/* Riferimento orizzontale (la media): recessivo, si vede se lo cerchi. */
+.chart-rule {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--line-strong);
+  pointer-events: none;
+}
+
+.chart-wrap {
+  position: relative;
 }

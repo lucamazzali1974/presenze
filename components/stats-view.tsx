@@ -6,8 +6,9 @@ import { createArchive } from '@/lib/actions/archives'
 import { AthleteName } from '@/components/athlete-name'
 import { download, slugDate, statsCsv } from '@/lib/csv'
 import { formatDate } from '@/lib/format'
+import { AttendanceCharts } from '@/components/attendance-charts'
 import { MatchStats, type MatchStatsData } from '@/components/match-stats'
-import type { Athlete, AttendanceStat, Team } from '@/lib/types'
+import type { Athlete, AttendanceStat, EventAttendance, Team } from '@/lib/types'
 import { Busy } from '@/components/spinner'
 
 export type StatsRow = {
@@ -34,6 +35,7 @@ export function StatsView({
   canArchive,
   selfOnly = false,
   matches,
+  events,
 }: {
   rows: StatsRow[]
   closed: ClosedSummary
@@ -46,8 +48,10 @@ export function StatsView({
   selfOnly?: boolean
   /** Il secondo pannello: risultati, marcatori e storico delle partite. */
   matches: MatchStatsData
+  /** Affluenza appello per appello: la materia prima dei grafici. */
+  events: EventAttendance[]
 }) {
-  const [tab, setTab] = useState<'presenze' | 'partite'>('presenze')
+  const [tab, setTab] = useState<'presenze' | 'grafici' | 'partite'>('presenze')
   const [showArchive, setShowArchive] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -153,24 +157,26 @@ export function StatsView({
           partite, come sono andate. Separarle evita una tabella che non
           entra nello schermo di un telefono. */}
       <div className="filters mb-4">
-        <button
-          type="button"
-          className="pill"
-          data-on={tab === 'presenze'}
-          onClick={() => setTab('presenze')}
-          aria-pressed={tab === 'presenze'}
-        >
-          Presenze
-        </button>
-        <button
-          type="button"
-          className="pill"
-          data-on={tab === 'partite'}
-          onClick={() => setTab('partite')}
-          aria-pressed={tab === 'partite'}
-        >
-          Partite
-        </button>
+        {(
+          [
+            ['presenze', 'Elenco'],
+            // I grafici sono una lettura di squadra: al giocatore, che
+            // vede solo la propria riga, non direbbero niente.
+            ...(selfOnly ? [] : [['grafici', 'Grafici'] as const]),
+            ['partite', 'Partite'],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            className="pill"
+            data-on={tab === key}
+            onClick={() => setTab(key)}
+            aria-pressed={tab === key}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {showArchive && canArchive && (
@@ -225,6 +231,8 @@ export function StatsView({
 
       {tab === 'partite' ? (
         <MatchStats data={matches} rows={rows} selfOnly={selfOnly} />
+      ) : tab === 'grafici' ? (
+        <AttendanceCharts rows={rows} events={events} />
       ) : (
       <ul className="panel rows">
         {rows.map((r) => (

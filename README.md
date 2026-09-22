@@ -19,7 +19,7 @@ Chi accede e' un allenatore o dirigente e compila l'appello di tutta la rosa.
 
 1. Crea un progetto su supabase.com (piano Free, regione Frankfurt).
 2. SQL Editor, incolla `supabase/schema.sql`, esegui tutto in una volta sola,
-   poi le migrazioni `002` -> `012` in ordine.
+   poi le migrazioni `002` -> `013` in ordine.
    Se il database esiste gia', esegui solo le migrazioni che ti mancano:
    sono tutte idempotenti, rieseguirle non rompe niente.
 3. `cp .env.local.example .env.local` e compila i valori (vedi sotto).
@@ -359,6 +359,32 @@ filtro squadra vale per tutti e due.
 Il giocatore, qui come altrove, vede solo la propria riga e solo le
 partite in cui era convocato.
 
+## Giorni previsti
+
+Caso vero: un ragazzo che di tre allenamenti a settimana ne puo' fare
+uno. Contargli gli altri due come assenze e' scorretto — non e' che non
+si presenta, e' che quel giorno non e' previsto per lui.
+
+Dalla scheda del giocatore, in **Atleti > Giorni previsti**, si scrive
+l'accordo cosi' com'e': *viene il giovedi'*. Da li' in poi gli
+allenamenti negli altri giorni non entrano nelle sue percentuali — ne'
+come presenza ne' come assenza — e un allenamento nuovo aggiunto al
+lunedi' resta fuori da solo, senza doversi ricordare di escluderlo.
+
+Le regole hanno un periodo (`dal` / `al`, entrambi facoltativi). Quando
+la situazione cambia a meta' stagione si **chiude** la vecchia e se ne
+apre una nuova: le percentuali gia' maturate restano quelle di allora.
+Eliminare una regola invece riscrive il passato, e il messaggio di
+conferma lo dice.
+
+Vale solo per gli allenamenti: le partite si convocano una per una, e
+per quelle c'e' il flag «non convocato». Chi non ha nessuna regola — cioe'
+quasi tutti — continua a contare tutto, esattamente come prima.
+
+La regola vive in `athlete_schedules` e la applica `event_counts_for()`
+nel database, quindi vale per le percentuali, per gli archivi e per i
+grafici allo stesso modo: non e' un filtro dell'interfaccia.
+
 ## Archivi
 
 Archiviare un periodo (dalla pagina Percentuali, solo admin) fa tre cose:
@@ -490,6 +516,34 @@ Scuro di default, chiaro con l'interruttore in alto a destra. La scelta sta in
 primo paint, cosi' non si vede il lampo scuro al ricarico. Senza scelta salvata
 si segue `prefers-color-scheme`.
 
+## Grafici
+
+`/stats` ha tre pannelli: **Elenco**, **Grafici**, **Partite**. Dentro
+Grafici ci sono quattro letture, una domanda per ciascuna:
+
+| Vista | Risponde a |
+|---|---|
+| Classifica | chi c'e' sempre e chi no, allenamenti e partite affiancati |
+| Andamento | come sta andando il gruppo mese per mese, con la media del periodo |
+| Affluenza | quali serate tirano di piu', appello per appello |
+| Fasce | quanti sono i regolari: sopra il 75%, fra 50 e 75, sotto il 50 |
+
+Sono barre in HTML e CSS, senza librerie. Tre cose non sono negoziabili
+e conviene sapere perche':
+
+* **il numero c'e' sempre scritto**, non solo colorato: il grafico si
+  legge stampato, al buio e da chi non distingue i colori;
+* le due tinte di serie sono `--serie-1` e `--serie-2`, e **non** sono
+  `--blue` e `--amber`: quelle due, sul fondo nero, escono dalla banda di
+  luminosita' e la coppia non supera il test per il daltonismo. Queste
+  sono la versione verificata, una per tema;
+* la fine della barra e' arrotondata, l'attacco no: barre corte e lunghe
+  devono partire dalla stessa linea per essere confrontabili.
+
+Il giocatore non vede il pannello Grafici: sono letture di squadra, e lui
+ha una riga sola. La vista `event_attendance`, che li alimenta, e'
+riservata allo staff anche lato database.
+
 ## Menu
 
 Sopra gli 820px le voci stanno in fila nella barra. Sotto, con otto
@@ -516,7 +570,7 @@ grigio; chi non ha soprannome mostra nome e cognome in primo piano
 ```
 app/                pagine
 components/         UI; i toggle dell'appello sono in attendance-board.tsx,
-                    le formazioni in match-lineups.tsx
+                    le formazioni in match-lineups.tsx, i grafici in charts.tsx
 lib/actions/        server action per le scritture
 lib/auth.ts         requireProfile(), requireSection(), guard()
 lib/permissions.ts  sezioni, livelli ed etichette della matrice
@@ -534,6 +588,7 @@ supabase/migration-009-indirizzo.sql   indirizzo del campo per Maps
 supabase/migration-010-ruoli.sql       ruoli custom e permessi per sezione
 supabase/migration-011-formazioni.sql  formazioni di partita, risultato e marcature
 supabase/migration-012-non-convocato.sql  flag non convocato, assenza che non conta
+supabase/migration-013-giorni-previsti.sql  giorni previsti per atleta, affluenza per evento
 ```
 
 ## Requisiti

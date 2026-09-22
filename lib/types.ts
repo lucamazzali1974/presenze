@@ -236,3 +236,50 @@ export type ScorerStat = {
 export function scorePoints(scores: { kind: ScoreKind; qty: number }[]) {
   return scores.reduce((n, s) => n + s.qty * SCORE_POINTS[s.kind], 0)
 }
+
+/* ── giorni previsti ──────────────────────────────────────────────── */
+
+/**
+ * L'accordo preso con un atleta: in quali giorni della settimana e'
+ * atteso agli allenamenti, e da quando a quando vale. Gli allenamenti
+ * negli altri giorni non entrano nelle sue percentuali. Senza nessuna
+ * regola, come per quasi tutti, conta tutto.
+ */
+export type AthleteSchedule = {
+  id: string
+  athlete_id: string
+  /** Standard ISO: 1 = lunedi ... 7 = domenica. */
+  weekdays: number[]
+  from_date: string | null
+  to_date: string | null
+  note: string | null
+  created_at: string
+}
+
+export const WEEKDAYS: [number, string, string][] = [
+  [1, 'Lunedì', 'lun'],
+  [2, 'Martedì', 'mar'],
+  [3, 'Mercoledì', 'mer'],
+  [4, 'Giovedì', 'gio'],
+  [5, 'Venerdì', 'ven'],
+  [6, 'Sabato', 'sab'],
+  [7, 'Domenica', 'dom'],
+]
+
+export const WEEKDAY_SHORT: Record<number, string> = Object.fromEntries(
+  WEEKDAYS.map(([n, , short]) => [n, short])
+)
+
+/** Una riga della vista event_attendance: quanti erano attesi e quanti c'erano. */
+export type EventAttendance = {
+  event_id: string
+  type: EventType
+  starts_at: string
+  team_id: string | null
+  title: string | null
+  opponent: string | null
+  expected: number
+  present: number
+  injured: number
+  uncalled: number
+}

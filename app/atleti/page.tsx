@@ -4,7 +4,13 @@ import { isStaff, myAthlete, requireSection } from '@/lib/auth'
 import { canEdit } from '@/lib/permissions'
 import { createClient } from '@/utils/supabase/server'
 import { hasAdminKey } from '@/utils/supabase/admin'
-import type { Athlete, Profile, Team, TeamMember } from '@/lib/types'
+import type {
+  Athlete,
+  AthleteSchedule,
+  Profile,
+  Team,
+  TeamMember,
+} from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +39,17 @@ export default async function AthletesPage() {
         ? supabase.from('profiles').select('*')
         : Promise.resolve({ data: null }),
     ])
+
+  // I giorni previsti: chi ha un accordo diverso dagli altri.
+  const { data: schedulesData } = await supabase
+    .from('athlete_schedules')
+    .select('*')
+    .order('from_date', { ascending: false })
+
+  const schedulesOf: Record<string, AthleteSchedule[]> = {}
+  for (const r of (schedulesData ?? []) as AthleteSchedule[]) {
+    schedulesOf[r.athlete_id] = [...(schedulesOf[r.athlete_id] ?? []), r]
+  }
 
   // Le squadre di ogni atleta, gia' pronte: l'elenco non deve rifare il giro.
   const teamsOf: Record<string, string[]> = {}
@@ -89,6 +106,7 @@ export default async function AthletesPage() {
         teamsOf={teamsOf}
         hasTeams={((teams ?? []) as Team[]).length > 0}
         accountOf={accountOf}
+        schedulesOf={schedulesOf}
         canCreateAccounts={canManageAccounts && hasAdminKey()}
         canEdit={canManageRoster}
         canManageAccounts={canManageAccounts}
