@@ -7,6 +7,7 @@ import { Stat } from '@/components/stats-view'
 import { AthleteName } from '@/components/athlete-name'
 import { download, eventsCsv, statsCsv } from '@/lib/csv'
 import { EVENT_LABEL, dayStamp, formatEventTime, monthLabel } from '@/lib/format'
+import { Segmented } from '@/components/charts'
 import type { Archive, AttendanceStat, Event } from '@/lib/types'
 
 export function ArchiveDetail({
@@ -158,23 +159,17 @@ export function ArchiveDetail({
 
       {error && <p className="alert mb-4">{error}</p>}
 
-      <div className="filters mb-3">
-        <button
-          type="button"
-          className="pill"
-          data-on={tab === 'stats'}
-          onClick={() => setTab('stats')}
-        >
-          Percentuali
-        </button>
-        <button
-          type="button"
-          className="pill"
-          data-on={tab === 'events'}
-          onClick={() => setTab('events')}
-        >
-          Calendario
-        </button>
+      {/* Vista dentro la pagina: segmentato, come nelle statistiche. */}
+      <div className="mb-4">
+        <Segmented
+          value={tab}
+          onChange={setTab}
+          options={[
+            ['stats', 'Percentuali'],
+            ['events', 'Calendario'],
+          ] as const}
+          label="Cosa mostrare dell’archivio"
+        />
       </div>
 
       {tab === 'stats' ? (

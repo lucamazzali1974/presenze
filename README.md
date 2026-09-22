@@ -528,6 +528,19 @@ Grafici ci sono quattro letture, una domanda per ciascuna:
 | Affluenza | quali serate tirano di piu', appello per appello |
 | Fasce | quanti sono i regolari: sopra il 75%, fra 50 e 75, sotto il 50 |
 
+In cima ai grafici ci sono quattro numeri in evidenza (presenza media,
+quanti stanno sopra il 75%, appelli a referto, miglior affluenza): sono
+la risposta prima ancora di guardare le barre.
+
+La pagina ha tre livelli di navigazione, e ognuno ha una forma diversa
+apposta perche' si capisca cosa cambia cosa:
+
+| Forma | Cos'e' |
+|---|---|
+| Sottolineatura rossa (`.tabs`) | la sezione della pagina: Elenco, Grafici, Partite |
+| Segmentato (`.seg`) | la vista dentro la sezione: Classifica, Andamento... |
+| Pillola piena (`.pill`) | un filtro sui dati: la squadra, il tipo di evento |
+
 Sono barre in HTML e CSS, senza librerie. Tre cose non sono negoziabili
 e conviene sapere perche':
 
@@ -538,7 +551,10 @@ e conviene sapere perche':
   luminosita' e la coppia non supera il test per il daltonismo. Queste
   sono la versione verificata, una per tema;
 * la fine della barra e' arrotondata, l'attacco no: barre corte e lunghe
-  devono partire dalla stessa linea per essere confrontabili.
+  devono partire dalla stessa linea per essere confrontabili;
+* `.bar-track` e `.bar-fill` hanno `display: block` scritto a mano. Sono
+  `<span>`, e su un elemento inline larghezza e altezza non fanno niente:
+  senza, si vede il binario grigio e nessun colore.
 
 Il giocatore non vede il pannello Grafici: sono letture di squadra, e lui
 ha una riga sola. La vista `event_attendance`, che li alimenta, e'

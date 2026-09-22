@@ -95,7 +95,9 @@ export function StatsView({
         <p className="sub">
           {closed.total === 0
             ? 'Contano solo gli appelli chiusi, non archiviati, e solo da quando il giocatore è in rosa.'
-            : `${closed.total} ${closed.total === 1 ? 'appello chiuso' : 'appelli chiusi'} in archivio corrente · ${closed.training} allenamenti · ${closed.match} partite`}
+            : `${closed.total} ${closed.total === 1 ? 'appello chiuso' : 'appelli chiusi'} · ${closed.training} ${
+                closed.training === 1 ? 'allenamento' : 'allenamenti'
+              } · ${closed.match} ${closed.match === 1 ? 'partita' : 'partite'}`}
         </p>
 
         {selfOnly && teams.length > 0 && (
@@ -127,36 +129,12 @@ export function StatsView({
           </div>
         )}
 
-        {/* Il giocatore non ha bottoni: il CSV serve a chi gestisce la
-            rosa, non a chi ha una riga sola. */}
-        {!selfOnly && (
-        <div className="row-actions mt-5">
-          <button
-            type="button"
-            className="btn"
-            onClick={exportCsv}
-            disabled={rows.length === 0}
-          >
-            Scarica CSV
-          </button>
-
-          {canArchive && !selectedTeam && (
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => setShowArchive((v) => !v)}
-            >
-              {showArchive ? 'Annulla' : 'Archivia un periodo'}
-            </button>
-          )}
-        </div>
-        )}
       </div>
 
-      {/* Due letture degli stessi appelli: quante volte c'era e, per le
-          partite, come sono andate. Separarle evita una tabella che non
-          entra nello schermo di un telefono. */}
-      <div className="filters mb-4">
+      {/* Tre letture degli stessi appelli: l'elenco, i grafici e le
+          partite. Sono sezioni della pagina, non filtri sui dati: per
+          questo hanno la sottolineatura del menu e non la pillola. */}
+      <div className="tabs">
         {(
           [
             ['presenze', 'Elenco'],
@@ -169,8 +147,6 @@ export function StatsView({
           <button
             key={key}
             type="button"
-            className="pill"
-            data-on={tab === key}
             onClick={() => setTab(key)}
             aria-pressed={tab === key}
           >
@@ -178,6 +154,56 @@ export function StatsView({
           </button>
         ))}
       </div>
+
+      {loadError && (
+        <p className="alert mb-4">
+          Non sono riuscito a leggere le percentuali: {loadError}
+        </p>
+      )}
+
+      {error && <p className="alert mb-4">{error}</p>}
+
+      {!loadError && !selfOnly && closed.total > 0 && counted === 0 && rows.length > 0 && (
+        <p className="alert mb-4">
+          Ci sono {closed.total} appelli chiusi, ma nessun giocatore li sta
+          conteggiando: tutti risultano in rosa da una data successiva
+          {closed.firstAt
+            ? ` al ${formatDate(closed.firstAt.slice(0, 10))}`
+            : ''}
+          . Correggi il campo «In rosa dal» dalla pagina Atleti.
+        </p>
+      )}
+
+      {tab === 'partite' ? (
+        <MatchStats data={matches} rows={rows} selfOnly={selfOnly} />
+      ) : tab === 'grafici' ? (
+        <AttendanceCharts rows={rows} events={events} />
+      ) : (
+      <>
+      {/* Il giocatore non ha bottoni: il CSV serve a chi gestisce la
+          rosa, non a chi ha una riga sola. */}
+      {!selfOnly && (
+        <div className="row-actions mb-4" style={{ marginTop: 0 }}>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={exportCsv}
+            disabled={rows.length === 0}
+          >
+            Scarica CSV
+          </button>
+
+          {canArchive && !selectedTeam && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => setShowArchive((v) => !v)}
+            >
+              {showArchive ? 'Annulla' : 'Archivia un periodo'}
+            </button>
+          )}
+        </div>
+      )}
 
       {showArchive && canArchive && (
         <form ref={formRef} action={submitArchive} className="panel mb-4 p-4">
@@ -210,30 +236,6 @@ export function StatsView({
         </form>
       )}
 
-      {loadError && (
-        <p className="alert mb-4">
-          Non sono riuscito a leggere le percentuali: {loadError}
-        </p>
-      )}
-
-      {error && <p className="alert mb-4">{error}</p>}
-
-      {!loadError && !selfOnly && closed.total > 0 && counted === 0 && rows.length > 0 && (
-        <p className="alert mb-4">
-          Ci sono {closed.total} appelli chiusi, ma nessun giocatore li sta
-          conteggiando: tutti risultano in rosa da una data successiva
-          {closed.firstAt
-            ? ` al ${formatDate(closed.firstAt.slice(0, 10))}`
-            : ''}
-          . Correggi il campo «In rosa dal» dalla pagina Atleti.
-        </p>
-      )}
-
-      {tab === 'partite' ? (
-        <MatchStats data={matches} rows={rows} selfOnly={selfOnly} />
-      ) : tab === 'grafici' ? (
-        <AttendanceCharts rows={rows} events={events} />
-      ) : (
       <ul className="panel rows">
         {rows.map((r) => (
           <li key={r.id} className="row">
@@ -265,6 +267,7 @@ export function StatsView({
           </li>
         )}
       </ul>
+      </>
       )}
     </main>
   )

@@ -14,41 +14,55 @@
 
 export type Tone = 'good' | 'warn' | 'bad'
 
-export function toneFor(pct: number | null): Tone | undefined {
-  if (pct === null) return undefined
+export function toneFor(pct: number | null | undefined): Tone | undefined {
+  if (pct === null || pct === undefined) return undefined
   if (pct >= 75) return 'good'
   if (pct >= 50) return 'warn'
   return 'bad'
 }
 
-/** Una riga: nome, una o due barre sovrapposte, valore. */
+export type BarLine = {
+  pct: number
+  /** Il numero da scrivere a fine riga: e' il dato, non un di piu'. */
+  value: string
+  serie?: 1 | 2
+  tone?: Tone
+  title: string
+}
+
+/**
+ * Un soggetto e le sue barre: il nome compare una volta sola, in cima al
+ * gruppo, e ogni riga porta la propria barra e il proprio numero.
+ */
 export function BarRow({
   label,
-  value,
-  bars,
+  lines,
 }: {
   label: React.ReactNode
-  value: React.ReactNode
-  bars: { pct: number; serie?: 1 | 2; tone?: Tone; title: string }[]
+  lines: BarLine[]
 }) {
   return (
-    <div className="bar-row">
-      <span className="bar-name">{label}</span>
+    <div className="bar-group">
+      {lines.map((l, i) => (
+        <div className="bar-line" key={i}>
+          <span className="bar-name">{i === 0 ? label : ''}</span>
 
-      <span className="bar-stack">
-        {bars.map((b, i) => (
-          <span key={i} className="bar-track" title={b.title}>
-            <span
-              className="bar-fill"
-              data-serie={b.serie ?? 1}
-              data-tone={b.tone}
-              style={{ width: `${Math.max(0, Math.min(100, b.pct))}%` }}
-            />
+          <span className="bar-track" title={l.title}>
+            {/* A zero niente riempimento: il minimo di 3px darebbe un
+                trattino colorato a chi non ha nessun dato. */}
+            {l.pct > 0 && (
+              <span
+                className="bar-fill"
+                data-serie={l.serie ?? 1}
+                data-tone={l.tone}
+                style={{ width: `${Math.min(100, l.pct)}%` }}
+              />
+            )}
           </span>
-        ))}
-      </span>
 
-      <span className="bar-value">{value}</span>
+          <span className="bar-value">{l.value}</span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -68,25 +82,31 @@ export function Legend({ items }: { items: [1 | 2, string][] }) {
 
 /**
  * Colonne verticali. Le etichette sotto si diradano da sole quando le
- * colonne sono tante: meglio una etichetta ogni cinque che una fila di
- * testo illeggibile.
+ * colonne sono tante, e il valore sopra la colonna compare solo finche'
+ * ci sta: meglio una etichetta ogni cinque che una fila illeggibile.
  */
 export function Columns({
   data,
   rule,
   ruleLabel,
+  empty = 'Non c’è ancora abbastanza storico.',
 }: {
-  data: { key: string; pct: number; label: string; title: string }[]
+  data: { key: string; pct: number; label: string; title: string; value?: string }[]
   /** Linea di riferimento, in percentuale: di solito la media. */
   rule?: number | null
   ruleLabel?: string
+  empty?: string
 }) {
   if (data.length === 0) {
-    return <p className="empty">Non c’è ancora abbastanza storico.</p>
+    return (
+      <div className="chart">
+        <p className="empty">{empty}</p>
+      </div>
+    )
   }
 
-  // Una etichetta ogni N, scelta perche' ne restino una decina in tutto.
   const step = Math.ceil(data.length / 10)
+  const showValues = data.length <= 12
 
   return (
     <div className="chart">
@@ -94,15 +114,22 @@ export function Columns({
         <div className="cols">
           {data.map((d) => (
             <span key={d.key} className="col" title={d.title}>
-              <i style={{ height: `${Math.max(0, Math.min(100, d.pct))}%` }} />
+              {showValues && <em>{d.value ?? `${Math.round(d.pct)}%`}</em>}
+              {d.pct > 0 ? (
+                <i style={{ height: `${Math.min(100, d.pct)}%` }} />
+              ) : (
+                <i style={{ height: '2px', background: 'var(--track)' }} />
+              )}
             </span>
           ))}
         </div>
 
+        {/* L'area delle barre e' alta 132px: 150 meno i 18 di respiro
+            in cima per i valori. La riga si posiziona su quella. */}
         {rule !== null && rule !== undefined && (
           <span
             className="chart-rule"
-            style={{ bottom: `${(rule / 100) * 132}px` }}
+            style={{ bottom: `${(Math.max(0, Math.min(100, rule)) / 100) * 132}px` }}
             aria-hidden="true"
           />
         )}
@@ -115,10 +142,57 @@ export function Columns({
       </div>
 
       {rule !== null && rule !== undefined && (
-        <p className="mini mt-2">
+        <p className="mini mt-3">
+          <span className="rule-key" aria-hidden="true" />
           {ruleLabel ?? 'Media'}: {Math.round(rule)}%
         </p>
       )}
+    </div>
+  )
+}
+
+/** I numeri che rispondono prima di ogni grafico. */
+export function Tiles({
+  items,
+}: {
+  items: { value: string; label: string }[]
+}) {
+  return (
+    <div className="tiles">
+      {items.map((t) => (
+        <div key={t.label} className="tile">
+          <b>{t.value}</b>
+          <span>{t.label}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Il selettore di vista: segmentato, per distinguerlo dai filtri. */
+export function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+  label,
+}: {
+  value: T
+  onChange: (next: T) => void
+  options: readonly (readonly [T, string])[]
+  label: string
+}) {
+  return (
+    <div className="seg" role="group" aria-label={label}>
+      {options.map(([key, text]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onChange(key)}
+          aria-pressed={value === key}
+        >
+          {text}
+        </button>
+      ))}
     </div>
   )
 }

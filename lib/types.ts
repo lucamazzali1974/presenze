@@ -164,6 +164,14 @@ export const SCORE_LABEL: Record<ScoreKind, string> = {
   drop: 'Drop',
 }
 
+/** Versione corta, per i pulsanti stretti del telefono. */
+export const SCORE_SHORT: Record<ScoreKind, string> = {
+  try: 'Mete',
+  conversion: 'Trasf.',
+  penalty: 'Piazzati',
+  drop: 'Drop',
+}
+
 export const SCORE_ONE: Record<ScoreKind, string> = {
   try: 'meta',
   conversion: 'trasformazione',

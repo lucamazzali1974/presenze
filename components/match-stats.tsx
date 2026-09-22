@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { AthleteName } from '@/components/athlete-name'
-import { BarRow } from '@/components/charts'
+import { BarRow, Segmented, Tiles } from '@/components/charts'
 import { dayStamp, displayName } from '@/lib/format'
 import type { Athlete, MatchResult } from '@/lib/types'
 import type { StatsRow } from '@/components/stats-view'
@@ -31,12 +31,12 @@ export type MatchStatsData = {
 
 type Block = 'bilancio' | 'marcatori' | 'atleti' | 'storico'
 
-const BLOCKS: [Block, string][] = [
+const BLOCKS = [
   ['bilancio', 'Bilancio'],
   ['marcatori', 'Marcatori'],
   ['atleti', 'Per atleta'],
   ['storico', 'Storico'],
-]
+] as const
 
 /**
  * Le partite. Il bilancio guarda le formazioni giocate (una partita di
@@ -79,78 +79,86 @@ export function MatchStats({
 
   return (
     <>
-      <div className="filters mb-4">
-        {BLOCKS.map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            className="pill"
-            data-on={block === key}
-            onClick={() => setBlock(key)}
-            aria-pressed={block === key}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="mb-4">
+        <Segmented
+          value={block}
+          onChange={setBlock}
+          options={BLOCKS}
+          label="Quale statistica"
+        />
       </div>
 
       {block === 'bilancio' && (
-        <div className="panel">
-          <div className="panel-head">
-            <span>
-              <span className="mini">Formazioni giocate</span>
-              <span
-                className="mt-1 block text-2xl"
-                style={{ color: 'var(--color-text)' }}
-              >
-                {played.length}
-              </span>
-            </span>
+        <>
+          <Tiles
+            items={[
+              { value: `${played.length}`, label: 'Formazioni giocate' },
+              { value: `${wins}-${draws}-${losses}`, label: 'Vinte · pari · perse' },
+              { value: `${pf}`, label: 'Punti fatti' },
+              { value: `${pa}`, label: 'Punti subiti' },
+            ]}
+          />
 
-            <span className="flex flex-wrap gap-2">
-              <span className="tag pass">{wins} vinte</span>
-              <span className="tag warn">{draws} pari</span>
-              <span className="tag fail">{losses} perse</span>
-              {pending > 0 && <span className="tag">{pending} senza risultato</span>}
-            </span>
+          <div className="panel mt-4">
+            <div className="panel-head">
+              <span className="mini">Come sono finite</span>
+              {pending > 0 && (
+                <span className="tag warn">{pending} senza risultato</span>
+              )}
+            </div>
+
+            <div className="chart">
+              {(
+                [
+                  ['Vinte', wins, 'good'],
+                  ['Pareggiate', draws, 'warn'],
+                  ['Perse', losses, 'bad'],
+                ] as const
+              ).map(([label, n, tone]) => (
+                <BarRow
+                  key={label}
+                  label={label}
+                  lines={[
+                    {
+                      pct: played.length > 0 ? (100 * n) / played.length : 0,
+                      value: `${n}`,
+                      tone,
+                      title: `${n} su ${played.length} formazioni giocate`,
+                    },
+                  ]}
+                />
+              ))}
+            </div>
+
+            <dl className="facts" style={{ padding: '4px 18px 16px' }}>
+              <div>
+                <dt>Differenza punti</dt>
+                <dd className="strong">
+                  {pf - pa > 0 ? '+' : ''}
+                  {pf - pa}
+                </dd>
+              </div>
+              <div>
+                <dt>Media fatti</dt>
+                <dd>{played.length > 0 ? (pf / played.length).toFixed(1) : '—'}</dd>
+              </div>
+              <div>
+                <dt>Media subiti</dt>
+                <dd>{played.length > 0 ? (pa / played.length).toFixed(1) : '—'}</dd>
+              </div>
+              <div>
+                <dt>Mete segnate</dt>
+                <dd>{data.scorers.reduce((n, s) => n + s.tries, 0)}</dd>
+              </div>
+            </dl>
           </div>
-
-          <dl className="facts" style={{ padding: '14px 18px' }}>
-            <div>
-              <dt>Punti fatti</dt>
-              <dd className="strong">{pf}</dd>
-            </div>
-            <div>
-              <dt>Punti subiti</dt>
-              <dd className="strong">{pa}</dd>
-            </div>
-            <div>
-              <dt>Differenza</dt>
-              <dd className="strong">
-                {pf - pa > 0 ? '+' : ''}
-                {pf - pa}
-              </dd>
-            </div>
-            <div>
-              <dt>Media fatti</dt>
-              <dd>{played.length > 0 ? (pf / played.length).toFixed(1) : '—'}</dd>
-            </div>
-            <div>
-              <dt>Media subiti</dt>
-              <dd>{played.length > 0 ? (pa / played.length).toFixed(1) : '—'}</dd>
-            </div>
-            <div>
-              <dt>Mete segnate</dt>
-              <dd>{data.scorers.reduce((n, s) => n + s.tries, 0)}</dd>
-            </div>
-          </dl>
-        </div>
+        </>
       )}
 
       {block === 'marcatori' && (
         <div className="panel">
           <div className="panel-head">
-            <span className="mini">Punti segnati</span>
+            <span className="mini">Punti segnati · barra in scala sul primo</span>
             <span className="mini">
               {data.scorers.reduce((n, s) => n + s.tries, 0)} mete in tutto
             </span>
@@ -163,10 +171,10 @@ export function MatchStats({
               <BarRow
                 key={s.athlete_id}
                 label={displayName(s.athlete)}
-                value={`${s.points}`}
-                bars={[
+                lines={[
                   {
                     pct: top > 0 ? (100 * s.points) / top : 0,
+                    value: `${s.points}`,
                     serie: 1,
                     title: `${s.tries} mete${
                       s.conversions > 0 ? `, ${s.conversions} trasformazioni` : ''

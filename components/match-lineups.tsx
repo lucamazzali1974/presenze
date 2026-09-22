@@ -14,8 +14,8 @@ import { Busy } from '@/components/spinner'
 import { formatEventTime, fullName, toLocalInputs } from '@/lib/format'
 import {
   SCORE_KINDS,
-  SCORE_LABEL,
   SCORE_ONE,
+  SCORE_SHORT,
   SCORE_POINTS,
   type Athlete,
   type Event,
@@ -594,17 +594,17 @@ function ScoreBoard({
     <div className="mt-4">
       <p className="mini mb-2">Stai segnando</p>
 
-      <div className="filters mb-3">
+      {/* Segmentato come le viste altrove: e' una modalita', non un
+          filtro sui dati. Il numero e' quanto vale quella marcatura. */}
+      <div className="seg mb-3" role="group" aria-label="Tipo di marcatura">
         {SCORE_KINDS.map((k) => (
           <button
             key={k}
             type="button"
-            className="pill"
-            data-on={kind === k}
             onClick={() => setKind(k)}
             aria-pressed={kind === k}
           >
-            {SCORE_LABEL[k]} · {SCORE_POINTS[k]}
+            {SCORE_SHORT[k]} · {SCORE_POINTS[k]}
           </button>
         ))}
       </div>

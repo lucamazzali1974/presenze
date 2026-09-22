@@ -1061,22 +1061,31 @@ a.pill[data-on='true']:hover {
 /* ── grafici a barre ─────────────────────── */
 
 .chart {
-  padding: 16px 18px;
+  padding: 14px 18px 18px;
 }
 
-/* Barre orizzontali: etichetta, barra, valore. La colonna dei nomi ha
-   una larghezza fissa, altrimenti le barre partono da punti diversi e
-   non sono piu' confrontabili a occhio. */
-.bar-row {
+/* Un gruppo = un soggetto (un giocatore, una fascia). Dentro, una riga
+   per serie: nome a sinistra solo sulla prima, barra, valore. Il valore
+   sta sulla stessa riga della sua barra, altrimenti con due serie non
+   si capisce a quale dei due numeri appartiene. */
+.bar-group {
+  padding: 7px 0;
+}
+
+.bar-group + .bar-group {
+  border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+}
+
+.bar-line {
   display: grid;
-  grid-template-columns: minmax(0, 8rem) 1fr auto;
+  grid-template-columns: minmax(0, 7.5rem) 1fr 3.25rem;
   align-items: center;
   gap: 10px;
-  padding: 5px 0;
+  min-height: 18px;
 }
 
-.bar-row + .bar-row {
-  border-top: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+.bar-line + .bar-line {
+  margin-top: 4px;
 }
 
 .bar-name {
@@ -1091,18 +1100,13 @@ a.pill[data-on='true']:hover {
   font-size: 13px;
   color: var(--text);
   font-variant-numeric: tabular-nums;
-  min-width: 3.5rem;
   text-align: right;
 }
 
-.bar-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
+/* display:block su tutti e due: sono <span>, e su un inline larghezza e
+   altezza non hanno effetto — la barra resterebbe invisibile. */
 .bar-track {
-  position: relative;
+  display: block;
   height: 9px;
   border-radius: 999px;
   background: var(--track);
@@ -1112,10 +1116,11 @@ a.pill[data-on='true']:hover {
 /* Estremita' arrotondata solo dove finisce il dato: l'attacco resta
    sulla linea di partenza, cosi' barre corte e lunghe si confrontano. */
 .bar-fill {
+  display: block;
   height: 100%;
   border-radius: 0 4px 4px 0;
   background: var(--serie-1);
-  min-width: 2px;
+  min-width: 3px;
 }
 
 .bar-fill[data-serie='2'] {
@@ -1132,28 +1137,45 @@ a.pill[data-on='true']:hover {
   background: var(--red);
 }
 
+@media (max-width: 560px) {
+  .bar-line {
+    grid-template-columns: minmax(0, 5.5rem) 1fr 3rem;
+    gap: 8px;
+  }
+  .bar-name,
+  .bar-value {
+    font-size: 13px;
+  }
+}
+
 /* Colonne: una per evento o per mese. Il gap di 2px e' il distanziatore
    che tiene separate due barre adiacenti senza una linea in mezzo. */
 .cols {
   display: flex;
   align-items: flex-end;
-  gap: 2px;
+  /* Centrate: con due sole colonne, "space-between" le sbatterebbe una
+     per lato. Con tante, il tetto di larghezza non morde e riempiono. */
+  justify-content: center;
+  gap: 4px;
   height: 150px;
   padding-top: 18px;
   border-bottom: 1px solid var(--line);
 }
 
+/* Il tetto di larghezza serve quando le colonne sono poche: sei barre
+   larghe centoventi pixel non sono un grafico, sono un muro. */
 .col {
   position: relative;
   flex: 1 1 0;
   min-width: 6px;
+  max-width: 72px;
   height: 100%;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  justify-content: flex-end;
   background: none;
   border: 0;
   padding: 0;
-  cursor: default;
 }
 
 .col i {
@@ -1161,24 +1183,38 @@ a.pill[data-on='true']:hover {
   width: 100%;
   border-radius: 4px 4px 0 0;
   background: var(--serie-1);
-  min-height: 2px;
+  min-height: 3px;
 }
 
 .col:hover i {
   background: var(--text);
 }
 
-/* Le etichette sotto le colonne: quando sono tante se ne mostra una ogni
-   tot, il resto resta nel tooltip. */
-.col-labels {
-  display: flex;
-  gap: 2px;
-  margin-top: 6px;
+/* Il valore sta nel flusso, sopra la barra: cosi' segue la barra quando
+   barra e' bassa, invece di restare appeso in cima al grafico. Compare
+   solo quando le colonne sono poche — con trenta sarebbe una riga di
+   numeri illeggibile. */
+.col em {
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-style: normal;
+  text-align: center;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
 }
 
+.col-labels {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 7px;
+}
+
+/* Stessa larghezza e stesso gap delle colonne, o le date scivolano. */
 .col-labels span {
   flex: 1 1 0;
   min-width: 6px;
+  max-width: 72px;
   font-size: 10px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1191,8 +1227,8 @@ a.pill[data-on='true']:hover {
 .legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
-  padding: 0 18px 12px;
+  gap: 16px;
+  padding: 0 18px 10px;
 }
 
 .legend span {
@@ -1204,6 +1240,7 @@ a.pill[data-on='true']:hover {
 }
 
 .legend i {
+  display: block;
   width: 12px;
   height: 12px;
   border-radius: 3px;
@@ -1215,7 +1252,20 @@ a.pill[data-on='true']:hover {
   background: var(--serie-2);
 }
 
+/* Il segno della legenda per la linea della media. */
+.rule-key {
+  display: inline-block;
+  width: 18px;
+  margin-right: 8px;
+  border-top: 1px dashed var(--line-strong);
+  vertical-align: middle;
+}
+
 /* Riferimento orizzontale (la media): recessivo, si vede se lo cerchi. */
+.chart-wrap {
+  position: relative;
+}
+
 .chart-rule {
   position: absolute;
   left: 0;
@@ -1224,6 +1274,130 @@ a.pill[data-on='true']:hover {
   pointer-events: none;
 }
 
-.chart-wrap {
-  position: relative;
+/* ── numeri in evidenza ──────────────────── */
+
+/* Il bordo e' il gap: una griglia con 1px di fondo che si vede fra le
+   celle, cosi' i riquadri restano attaccati e non c'e' un bordo per uno. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.tile {
+  background: var(--panel);
+  padding: 14px 16px 16px;
+}
+
+.tile b {
+  display: block;
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1.15;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.tile span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* ── navigazione interna alle pagine ─────── */
+
+/* Tre livelli, tre forme diverse, cosi' si capisce cosa cambia cosa:
+   .tabs = la sezione della pagina (sottolineatura rossa, come il menu)
+   .seg  = la vista dentro la sezione (segmentato)
+   .pill = un filtro sui dati (pillola piena) */
+.tabs {
+  display: flex;
+  gap: 22px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tabs button {
+  padding: 0 0 11px;
+  font-size: 15px;
+  font-family: inherit;
+  white-space: nowrap;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tabs button:hover {
+  color: var(--text);
+}
+
+.tabs button[aria-pressed='true'] {
+  color: var(--text);
+  font-weight: 500;
+  box-shadow: inset 0 -2px 0 0 var(--red);
+}
+
+.seg {
+  display: inline-flex;
+  max-width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  /* Scorre invece di tagliare: con etichette lunghe su uno schermo
+     stretto, "hidden" farebbe sparire l'ultima voce senza dirlo. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.seg::-webkit-scrollbar {
+  display: none;
+}
+
+.seg button {
+  padding: 8px 15px;
+  font-size: 13px;
+  font-family: inherit;
+  white-space: nowrap;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.seg button + button {
+  border-left: 1px solid var(--line);
+}
+
+.seg button:hover {
+  color: var(--text);
+}
+
+.seg button[aria-pressed='true'] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+@media (max-width: 560px) {
+  .seg {
+    display: flex;
+    width: 100%;
+  }
+  .seg button {
+    flex: 1 1 0;
+    padding: 9px 8px;
+    font-size: 12px;
+  }
 }

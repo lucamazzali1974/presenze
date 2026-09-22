@@ -1,26 +1,38 @@
 'use client'
 
 import { useState } from 'react'
-import { BarRow, Columns, Legend, toneFor } from '@/components/charts'
+import {
+  BarRow,
+  Columns,
+  Legend,
+  Segmented,
+  Tiles,
+  toneFor,
+} from '@/components/charts'
 import type { StatsRow } from '@/components/stats-view'
 import { displayName } from '@/lib/format'
 import type { EventAttendance } from '@/lib/types'
 
 type View = 'classifica' | 'andamento' | 'affluenza' | 'fasce'
 
-const VIEWS: [View, string][] = [
+const VIEWS = [
   ['classifica', 'Classifica'],
   ['andamento', 'Andamento'],
   ['affluenza', 'Affluenza'],
   ['fasce', 'Fasce'],
-]
+] as const
+
+const KINDS = [
+  ['training', 'Allenamenti'],
+  ['match', 'Partite'],
+  ['all', 'Tutti'],
+] as const
 
 const MONTHS = [
   'gen', 'feb', 'mar', 'apr', 'mag', 'giu',
   'lug', 'ago', 'set', 'ott', 'nov', 'dic',
 ]
 
-/** "2026-09" -> "set 26", per le etichette sotto le colonne. */
 function monthKey(iso: string) {
   const d = new Date(iso)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -35,10 +47,15 @@ function pctOf(present: number, expected: number) {
   return expected > 0 ? (100 * present) / expected : 0
 }
 
+function round(n: number) {
+  return Math.round(n)
+}
+
 /**
- * I grafici delle presenze. Ognuno risponde a una domanda sola:
- * chi c'e' e chi no, come sta andando il gruppo nel tempo, quali serate
- * tirano di piu', quanti sono i regolari.
+ * I grafici delle presenze. Ognuno risponde a una domanda sola: chi c'e'
+ * e chi no, come sta andando il gruppo nel tempo, quali serate tirano di
+ * piu', quanti sono i regolari. Sopra, i tre numeri che rispondono prima
+ * ancora di guardare le barre.
  */
 export function AttendanceCharts({
   rows,
@@ -51,12 +68,33 @@ export function AttendanceCharts({
   const [view, setView] = useState<View>('classifica')
   const [kind, setKind] = useState<'training' | 'match' | 'all'>('training')
 
-  // ── classifica: chi c'e' sempre e chi no
+  // ── numeri in testa
+  const present = events.reduce((n, e) => n + e.present, 0)
+  const expected = events.reduce((n, e) => n + e.expected, 0)
+  const average = pctOf(present, expected)
+
+  const withStats = rows.filter((r) => r.training)
+  const regulars = withStats.filter((r) => (r.training?.pct ?? 0) >= 75).length
+
+  const best = events.reduce<EventAttendance | null>(
+    (top, e) =>
+      !top || pctOf(e.present, e.expected) > pctOf(top.present, top.expected)
+        ? e
+        : top,
+    null
+  )
+
+  // ── classifica: a parita' di percentuale, ordine alfabetico
   const ranked = rows
     .filter((r) => r.training || r.match)
-    .sort((a, b) => (b.training?.pct ?? -1) - (a.training?.pct ?? -1))
+    .sort(
+      (a, b) =>
+        (b.training?.pct ?? -1) - (a.training?.pct ?? -1) ||
+        (b.match?.pct ?? -1) - (a.match?.pct ?? -1) ||
+        a.sort.localeCompare(b.sort, 'it')
+    )
 
-  // ── andamento: una colonna per mese, sulla media della squadra
+  // ── andamento: una colonna per mese
   const byMonth = new Map<string, { present: number; expected: number }>()
   for (const e of events) {
     const k = monthKey(e.starts_at)
@@ -72,7 +110,7 @@ export function AttendanceCharts({
       key,
       pct: pctOf(v.present, v.expected),
       label: monthLabel(key),
-      title: `${monthLabel(key)}: ${Math.round(pctOf(v.present, v.expected))}% · ${v.present} presenze su ${v.expected}`,
+      title: `${monthLabel(key)}: ${round(pctOf(v.present, v.expected))}% · ${v.present} presenze su ${v.expected} attese`,
     }))
 
   // ── affluenza: una colonna per appello chiuso
@@ -88,50 +126,69 @@ export function AttendanceCharts({
       key: e.event_id,
       pct: pctOf(e.present, e.expected),
       label: day,
-      title: `${day} ${e.type === 'match' ? '· partita' : '· allenamento'}: ${e.present} su ${e.expected} (${Math.round(pctOf(e.present, e.expected))}%)`,
+      value: `${e.present}`,
+      title: `${day} · ${e.type === 'match' ? 'partita' : 'allenamento'}: ${e.present} presenti su ${e.expected} (${round(pctOf(e.present, e.expected))}%)`,
     }
   })
 
-  const totalPresent = listed.reduce((n, e) => n + e.present, 0)
-  const totalExpected = listed.reduce((n, e) => n + e.expected, 0)
+  const kindPresent = listed.reduce((n, e) => n + e.present, 0)
+  const kindExpected = listed.reduce((n, e) => n + e.expected, 0)
 
-  // ── fasce: quanti regolari, quanti a intermittenza
-  const withStats = rows.filter((r) => r.training)
-  const bands: { label: string; tone: 'good' | 'warn' | 'bad'; n: number }[] = [
+  // ── fasce
+  const bands = [
     {
       label: 'Oltre il 75%',
-      tone: 'good',
+      tone: 'good' as const,
       n: withStats.filter((r) => (r.training?.pct ?? 0) >= 75).length,
     },
     {
-      label: 'Fra il 50 e il 75%',
-      tone: 'warn',
+      label: 'Fra 50 e 75%',
+      tone: 'warn' as const,
       n: withStats.filter(
         (r) => (r.training?.pct ?? 0) >= 50 && (r.training?.pct ?? 0) < 75
       ).length,
     },
     {
       label: 'Sotto il 50%',
-      tone: 'bad',
+      tone: 'bad' as const,
       n: withStats.filter((r) => (r.training?.pct ?? 0) < 50).length,
     },
   ]
 
+  if (events.length === 0) {
+    return (
+      <div className="panel">
+        <p className="empty">
+          Ancora nessun appello chiuso: i grafici compaiono da lì.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <>
-      <div className="filters mb-4">
-        {VIEWS.map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            className="pill"
-            data-on={view === key}
-            onClick={() => setView(key)}
-            aria-pressed={view === key}
-          >
-            {label}
-          </button>
-        ))}
+      <Tiles
+        items={[
+          { value: `${round(average)}%`, label: 'Presenza media' },
+          {
+            value: `${regulars}/${withStats.length}`,
+            label: 'Sopra il 75%',
+          },
+          { value: `${events.length}`, label: 'Appelli a referto' },
+          {
+            value: best ? `${round(pctOf(best.present, best.expected))}%` : '—',
+            label: 'Miglior affluenza',
+          },
+        ]}
+      />
+
+      <div className="mt-4 mb-4">
+        <Segmented
+          value={view}
+          onChange={setView}
+          options={VIEWS}
+          label="Quale grafico"
+        />
       </div>
 
       {view === 'classifica' && (
@@ -141,19 +198,22 @@ export function AttendanceCharts({
             <span className="mini">{ranked.length} in elenco</span>
           </div>
 
-          <Legend items={[[1, 'Allenamenti'], [2, 'Partite']]} />
+          <Legend
+            items={[
+              [1, 'Allenamenti'],
+              [2, 'Partite'],
+            ]}
+          />
 
           <div className="chart" style={{ paddingTop: 0 }}>
             {ranked.map((r) => (
               <BarRow
                 key={r.id}
                 label={displayName(r.athlete)}
-                value={
-                  r.training ? `${Math.round(r.training.pct)}%` : '—'
-                }
-                bars={[
+                lines={[
                   {
                     pct: r.training?.pct ?? 0,
+                    value: r.training ? `${round(r.training.pct)}%` : '—',
                     serie: 1,
                     title: r.training
                       ? `Allenamenti: ${r.training.attended} su ${r.training.expected}`
@@ -161,6 +221,7 @@ export function AttendanceCharts({
                   },
                   {
                     pct: r.match?.pct ?? 0,
+                    value: r.match ? `${round(r.match.pct)}%` : '—',
                     serie: 2,
                     title: r.match
                       ? `Partite: ${r.match.attended} su ${r.match.expected}`
@@ -181,20 +242,16 @@ export function AttendanceCharts({
         <div className="panel">
           <div className="panel-head">
             <span className="mini">Presenze medie, mese per mese</span>
-            <span className="mini">{months.length} mesi</span>
+            <span className="mini">
+              {months.length} {months.length === 1 ? 'mese' : 'mesi'}
+            </span>
           </div>
 
           <Columns
             data={months}
-            rule={
-              totalExpected > 0
-                ? pctOf(
-                    events.reduce((n, e) => n + e.present, 0),
-                    events.reduce((n, e) => n + e.expected, 0)
-                  )
-                : null
-            }
+            rule={expected > 0 ? average : null}
             ruleLabel="Media del periodo"
+            empty="Serve almeno un mese di appelli chiusi."
           />
         </div>
       )}
@@ -203,33 +260,30 @@ export function AttendanceCharts({
         <div className="panel">
           <div className="panel-head">
             <span className="mini">Quanti si presentano, appello per appello</span>
-            <span className="flex flex-wrap gap-2">
-              {(
-                [
-                  ['training', 'Allenamenti'],
-                  ['match', 'Partite'],
-                  ['all', 'Tutti'],
-                ] as const
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  className="pill"
-                  data-on={kind === key}
-                  onClick={() => setKind(key)}
-                  aria-pressed={kind === key}
-                >
-                  {label}
-                </button>
-              ))}
-            </span>
+            <Segmented
+              value={kind}
+              onChange={setKind}
+              options={KINDS}
+              label="Quali appelli"
+            />
           </div>
 
           <Columns
             data={columns}
-            rule={totalExpected > 0 ? pctOf(totalPresent, totalExpected) : null}
+            rule={kindExpected > 0 ? pctOf(kindPresent, kindExpected) : null}
             ruleLabel="Media"
+            empty={
+              kind === 'match'
+                ? 'Nessuna partita con l’appello chiuso.'
+                : 'Nessun allenamento con l’appello chiuso.'
+            }
           />
+
+          <p className="mini" style={{ padding: '0 18px 16px' }}>
+            L’altezza è la percentuale di presenti, il numero sopra è quanti
+            erano. Gli attesi cambiano da una data all’altra: contano solo i
+            giocatori già in rosa, della squadra giusta e nei loro giorni.
+          </p>
         </div>
       )}
 
@@ -245,13 +299,10 @@ export function AttendanceCharts({
               <BarRow
                 key={b.label}
                 label={b.label}
-                value={`${b.n}`}
-                bars={[
+                lines={[
                   {
-                    pct:
-                      withStats.length > 0
-                        ? (100 * b.n) / withStats.length
-                        : 0,
+                    pct: withStats.length > 0 ? (100 * b.n) / withStats.length : 0,
+                    value: `${b.n}`,
                     tone: b.tone,
                     title: `${b.n} giocatori su ${withStats.length}`,
                   },
