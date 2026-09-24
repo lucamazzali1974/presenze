@@ -460,10 +460,23 @@ allenatore che compila non capita.
 
 ## Notifiche push
 
-Nei giorni con un evento, i giocatori ricevono un promemoria alle 9 del
-mattino: *"Oggi allenamento alle 19:00 — Muggio' — segnala se non ci
-sarai"*. Il tocco apre l'appello di quell'evento. Lo staff non le riceve:
-compila l'appello guardando il campo.
+Niente email: l'unico avviso che l'app manda e' una **notifica push sul
+telefono**. Non c'e' codice che spedisce posta da nessuna parte.
+
+Quando parte:
+
+| Evento | Quando arriva |
+|---|---|
+| Allenamento | la mattina stessa, fra le 9 e le 10 |
+| Partita | **tre giorni prima**, fra le 9 e le 10 |
+
+L'allenamento lo si ricorda il giorno stesso. La partita no: serve
+sapere in anticipo chi c'e' per fare le formazioni, e chi ha un impegno
+deve poterlo dire in tempo. Il giorno della partita non arriva nulla —
+l'ora del ritrovo sta gia' nell'avviso di tre giorni prima.
+
+Il tocco apre l'appello di quell'evento. Lo staff non le riceve: compila
+l'appello guardando il campo.
 
 **Riceve solo chi ha davvero bisogno di rispondere**: i convocati
 dell'evento (la rosa della sua squadra, o tutti se l'evento non ne ha),
@@ -474,20 +487,27 @@ con un account atleta attivo, che non si sono gia' segnati assenti.
 1. `npx web-push generate-vapid-keys` genera la coppia di chiavi.
 2. Su Vercel (Production, Preview, Development) e in `.env.local`:
    `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
-   (un `mailto:`), e `CRON_SECRET` a piacere. Poi **Redeploy**.
+   (un `mailto:`: e' l'indirizzo di contatto che il protocollo push
+   pretende, non un destinatario — non ci viene spedito niente), e
+   `CRON_SECRET` a piacere. Poi **Redeploy**.
 3. Esegui `supabase/migration-007-notifiche.sql`.
-4. Su GitHub, Settings > Secrets and variables > Actions: `APP_URL` e
-   `CRON_SECRET` (lo stesso valore di Vercel).
-5. Ogni giocatore attiva le notifiche dal suo **Profilo**. Il permesso
+4. Ogni giocatore attiva le notifiche dal suo **Profilo**. Il permesso
    deve partire da un suo tocco: non si puo' forzare da codice.
 
-### Perche' il workflow parte due volte
+Niente secret su GitHub: il job lo chiama Vercel.
 
-`.github/workflows/reminders.yml` gira alle 07:00 e alle 08:00 UTC. Cron
-non conosce l'ora legale, quindi una delle due corse cade alle 9 italiane
-e l'altra no: la API route controlla l'ora locale e scarta quella
-sbagliata. Il Vercel Cron non andava bene: sul piano Hobby e' limitato a
-una volta al giorno con precisione a +/- 59 minuti.
+### Chi fa partire il job
+
+`vercel.json` dichiara due cron sullo stesso indirizzo, alle 07:00 e alle
+08:00 UTC. Vercel aggiunge da solo l'header `Authorization: Bearer` con
+il valore di `CRON_SECRET`, che la route ricontrolla.
+
+Perche' due, e perche' una finestra di due ore: sul piano Hobby un cron
+gira una volta al giorno e parte **entro l'ora indicata, non all'ora
+indicata** (fino a 59 minuti dopo). Con l'ora legale di mezzo, una sola
+corsa mancherebbe il bersaglio meta' dell'anno. Cosi' invece una delle
+due cade sempre fra le 9 e le 10 italiane, e la seconda trova il
+registro gia' scritto e non ripete niente.
 
 `reminder_log` (una riga per evento e per giorno, chiave primaria
 `event_id + sent_on`) impedisce il doppio invio: la riga si scrive prima
@@ -495,8 +515,21 @@ di spedire, e il conflitto e' il segnale di "gia' fatto". La tabella ha
 la RLS attiva e nessuna policy, quindi ci arriva solo il job con la
 secret key.
 
-Per provarla senza aspettare: Actions > Promemoria del mattino > Run
-workflow, spuntando **force**.
+Il middleware **non deve** toccare `/api/`: un cron non segue i redirect,
+e finche' la route rispondeva 307 verso il login il promemoria non e'
+mai partito. La riga del `matcher` in `middleware.ts` lo esclude, con il
+commento che spiega perche'.
+
+Per provarla senza aspettare:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://<la-tua-app>.vercel.app/api/cron/reminders?force=1"
+```
+
+`force=1` salta il controllo dell'ora, non il registro: per rimandare lo
+stesso promemoria due volte nello stesso giorno bisogna cancellare la
+riga da `reminder_log`.
 
 ### Limiti da conoscere
 
@@ -591,7 +624,8 @@ lib/actions/        server action per le scritture
 lib/auth.ts         requireProfile(), requireSection(), guard()
 lib/permissions.ts  sezioni, livelli ed etichette della matrice
 utils/supabase/     client browser, server, middleware, admin
-middleware.ts       refresh sessione e gate pending/blocked
+middleware.ts       refresh sessione e gate pending/blocked (esclude /api/)
+vercel.json         i due cron dei promemoria push
 supabase/schema.sql   schema completo per installazioni nuove
 supabase/migration-002-archivi.sql     infortuni e archivi
 supabase/migration-003-joined-on.sql   allinea joined_on della rosa esistente
