@@ -5,6 +5,7 @@ import { createClient } from '@/utils/supabase/server'
 import { guard } from '@/lib/auth'
 import { localToISO } from '@/lib/format'
 import type { ActionResult } from '@/lib/types'
+import { setupMatch, type GameDraft } from '@/lib/actions/lineups'
 
 /** Stringa vuota dal <select> = "tutta la societa'", cioe' team_id null. */
 function readTeamId(formData: FormData) {
@@ -62,6 +63,31 @@ export async function createEvent(formData: FormData): Promise<ActionResult> {
   // e senza aver scritto niente: silenzio indistinguibile dal successo.
   if (!data || data.length === 0) {
     return { error: 'Data non creata: permessi insufficienti.' }
+  }
+
+  /*
+   * La partita nasce gia' pronta per risultato e marcature: una
+   * formazione con la rosa della squadra e i suoi incontri. Uno per la
+   * partita singola (eredita avversario e orario dell'evento), uno per
+   * riga per il triangolare. Se chi crea non ha 'appello' in modifica la
+   * formazione non si crea, ma la data resta: la si imposta dopo dalla
+   * pagina della partita.
+   */
+  if (type === 'match') {
+    const format = String(formData.get('match_format') ?? 'single')
+    let games: GameDraft[] = [{}]
+
+    if (format === 'multi') {
+      const opponents = formData.getAll('game_opponent').map(String)
+      const times = formData.getAll('game_time').map(String)
+      games = opponents.map((opponent, i) => ({
+        opponent: opponent.trim() || null,
+        time: times[i]?.trim() || null,
+      }))
+      if (games.length === 0) games = [{}, {}]
+    }
+
+    await setupMatch((data[0] as { id: string }).id, games)
   }
 
   revalidatePath('/admin/events')

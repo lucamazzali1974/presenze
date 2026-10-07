@@ -46,6 +46,11 @@
      test daltonismo. Queste due sono la versione validata. */
   --serie-1: #0693e3;
   --serie-2: #b88200;
+  /* Terza e quarta: servono alle marcature (mete, trasformazioni,
+     piazzati, drop) in quest'ordine. Validate in sequenza contro
+     #0d0d0d: banda di luminosita', daltonismo e visione normale. */
+  --serie-3: #9085e9;
+  --serie-4: #1baf7a;
   --topbar: rgba(0, 0, 0, 0.82);
   --absent-bg: rgba(255, 68, 51, 0.1);
   --track: rgba(255, 255, 255, 0.12);
@@ -70,6 +75,8 @@ html.light {
   --blue: #0868a8;
   --serie-1: #0868a8;
   --serie-2: #9a6d00;
+  --serie-3: #4a3aa7;
+  --serie-4: #199e70;
   --topbar: rgba(255, 255, 255, 0.85);
   --absent-bg: rgba(216, 31, 16, 0.07);
   --track: rgba(0, 0, 0, 0.1);
@@ -1126,6 +1133,41 @@ a.pill[data-on='true']:hover {
 .bar-fill[data-serie='2'] {
   background: var(--serie-2);
 }
+.bar-fill[data-serie='3'] {
+  background: var(--serie-3);
+}
+.bar-fill[data-serie='4'] {
+  background: var(--serie-4);
+}
+
+/* Barra impilata: i pezzi uno dopo l'altro con 2px di fondo in mezzo,
+   cosi' due tinte vicine non si fondono. Arrotondato solo l'ultimo. */
+.bar-track.stack {
+  display: flex;
+  gap: 2px;
+}
+.bar-track.stack .bar-fill {
+  flex: none;
+  border-radius: 0;
+  min-width: 2px;
+}
+.bar-track.stack .bar-fill:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+/* La riga di dettaglio sotto una barra: i numeri per tipo. */
+.bar-sub {
+  display: grid;
+  grid-template-columns: minmax(0, 7.5rem) 1fr 3.25rem;
+  gap: 10px;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.bar-sub > span:nth-child(2) {
+  grid-column: 2 / 4;
+}
 
 .bar-fill[data-tone='good'] {
   background: var(--green);
@@ -1138,7 +1180,8 @@ a.pill[data-on='true']:hover {
 }
 
 @media (max-width: 560px) {
-  .bar-line {
+  .bar-line,
+  .bar-sub {
     grid-template-columns: minmax(0, 5.5rem) 1fr 3rem;
     gap: 8px;
   }
@@ -1250,6 +1293,12 @@ a.pill[data-on='true']:hover {
 
 .legend i[data-serie='2'] {
   background: var(--serie-2);
+}
+.legend i[data-serie='3'] {
+  background: var(--serie-3);
+}
+.legend i[data-serie='4'] {
+  background: var(--serie-4);
 }
 
 /* Il segno della legenda per la linea della media. */
@@ -1400,4 +1449,145 @@ a.pill[data-on='true']:hover {
     padding: 9px 8px;
     font-size: 12px;
   }
+}
+
+
+/* ── incontri e marcature per tipo ───────── */
+
+/* Gli incontri dentro la formazione: rientrati, con il filo a sinistra
+   che li lega alla formazione sopra. */
+.games {
+  margin-top: 14px;
+  border-left: 2px solid var(--line);
+}
+.game {
+  padding: 10px 0 12px 14px;
+}
+.game + .game {
+  border-top: 1px solid var(--line);
+}
+
+/* Una riga per convocato: nome e punti in alto, i quattro contatori
+   sotto. Quattro in fila sul desktop, due per due sul telefono. */
+.scorer-row {
+  padding: 12px 16px 14px;
+}
+.scorer-row .mini[data-on='true'] {
+  color: var(--text);
+}
+.score-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 12px;
+  margin-top: 10px;
+}
+.score-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+@media (max-width: 640px) {
+  .score-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Contatore compatto: quattro per riga devono starci, il bersaglio
+   resta sopra i 40px. */
+.stepper.sm {
+  align-self: flex-start;
+}
+.stepper.sm button {
+  width: 40px;
+  min-height: 40px;
+  font-size: 18px;
+}
+.stepper.sm b {
+  min-width: 2.25rem;
+}
+
+/* Le righe degli incontri da creare: avversario, ora, togli. */
+.games-draft {
+  display: grid;
+  gap: 8px;
+}
+.games-draft li {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr 7.5rem auto;
+  align-items: center;
+  gap: 8px;
+}
+.games-draft input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 16px;
+  font-family: inherit;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  outline: none;
+}
+.games-draft input:focus {
+  border-color: var(--text);
+}
+@media (max-width: 560px) {
+  .games-draft li {
+    grid-template-columns: 1fr 6.5rem auto;
+  }
+  .games-draft li > .mini {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Tabella dei numeri: la vista testuale di ogni grafico. */
+.num-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.num-table th,
+.num-table td {
+  padding: 9px 10px;
+  text-align: right;
+  border-top: 1px solid var(--line);
+  white-space: nowrap;
+}
+.num-table th {
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-top: 0;
+}
+.num-table th:first-child,
+.num-table td:first-child {
+  text-align: left;
+  padding-left: 18px;
+  white-space: normal;
+}
+.num-table th:last-child,
+.num-table td:last-child {
+  padding-right: 18px;
+}
+.num-table td {
+  color: var(--par);
+}
+.num-table td.strong {
+  color: var(--text);
+  font-weight: 500;
+}
+.num-table td[data-zero='true'] {
+  color: var(--faint);
+}
+.table-scroll {
+  overflow-x: auto;
+}
+
+/* Testata di giornata nello storico: data e luogo, poi gli incontri. */
+.day-head {
+  padding: 12px 18px;
+  background: var(--panel-2);
 }

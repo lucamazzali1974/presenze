@@ -204,27 +204,64 @@ export type LineupMember = {
 
 /** Contatore, non registro: una riga per atleta e tipo, qty che sale e scende. */
 export type Score = {
+  /** L'incontro in cui e' stata segnata: e' la chiave vera. */
+  game_id: string
+  /** Ridondante, lo riempie il database dall'incontro. */
   lineup_id: string
   athlete_id: string
   kind: ScoreKind
   qty: number
 }
 
+/**
+ * Un incontro della formazione. La partita singola ne ha uno; il
+ * triangolare due o piu', con gli stessi convocati. Avversario e orario
+ * nulli si ereditano dalla formazione e poi dalla partita.
+ */
+export type Game = {
+  id: string
+  lineup_id: string
+  event_id: string
+  opponent: string | null
+  starts_at: string | null
+  points_for: number | null
+  points_against: number | null
+  sort: number
+  created_at: string
+}
+
+/** Lo stesso campo di MatchScorer per ogni tipo di marcatura. */
+export const SCORE_FIELD = {
+  try: 'tries',
+  conversion: 'conversions',
+  penalty: 'penalties',
+  drop: 'drops',
+} as const satisfies Record<ScoreKind, string>
+
 export type MatchOutcome = 'win' | 'loss' | 'draw'
 
-/** Una riga della vista match_results: una formazione gia' giocata. */
+/** Una riga della vista match_results: un incontro gia' giocato. */
 export type MatchResult = {
+  game_id: string
   lineup_id: string
   event_id: string
   lineup_name: string
   team_id: string | null
   starts_at: string
+  event_starts_at: string
   opponent: string | null
   location: string | null
+  title: string | null
   points_for: number | null
   points_against: number | null
   outcome: MatchOutcome | null
   called: number
+  /** Quanti incontri ha giocato quella formazione nella giornata. */
+  games_in_lineup: number
+  tries: number
+  conversions: number
+  penalties: number
+  drops: number
   scored_points: number
 }
 
@@ -238,6 +275,7 @@ export type ScorerStat = {
   drops: number | null
   points: number | null
   matches_scored: number
+  games_scored: number
 }
 
 /** Somma i punti di un insieme di marcature. */

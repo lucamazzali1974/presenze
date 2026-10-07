@@ -4,7 +4,7 @@ import { isStaff, myAthlete, requireSection } from '@/lib/auth'
 import { createClient } from '@/utils/supabase/server'
 import { EVENT_LABEL, dayStamp, formatEventTime, monthLabel } from '@/lib/format'
 import { mapsUrl } from '@/lib/maps'
-import type { Event, Lineup, LineupMember, Team } from '@/lib/types'
+import type { Event, Game, Lineup, LineupMember, Team } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,13 +58,20 @@ export default async function CalendarioPage() {
    */
   const matchIds = events.filter((e) => e.type === 'match').map((e) => e.id)
 
-  const [{ data: lineupsData }, { data: lineupMembersData }] =
+  const [{ data: lineupsData }, { data: lineupMembersData }, { data: gamesData }] =
     matchIds.length > 0
       ? await Promise.all([
           supabase.from('lineups').select('*').in('event_id', matchIds).order('sort'),
           supabase.from('lineup_members').select('*').in('event_id', matchIds),
+          supabase.from('games').select('*').in('event_id', matchIds).order('sort'),
         ])
-      : [{ data: null }, { data: null }]
+      : [{ data: null }, { data: null }, { data: null }]
+
+  // Gli incontri di ogni formazione: il triangolare ne ha piu' d'uno.
+  const games = (gamesData ?? []) as Game[]
+  function gamesOf(lineupId: string) {
+    return games.filter((g) => g.lineup_id === lineupId)
+  }
 
   const lineups = (lineupsData ?? []) as Lineup[]
   const lineupMembers = (lineupMembersData ?? []) as LineupMember[]
@@ -189,12 +196,41 @@ export default async function CalendarioPage() {
 
                     {isMatch && lineupsOf(e.id).length > 0 && (
                       <p className="mt-2 flex flex-wrap gap-2">
-                        {lineupsOf(e.id).map((l) => (
-                          <span key={l.id} className="tag info">
-                            {l.name} · {formatEventTime(l.starts_at ?? e.starts_at)}
-                            {l.meet_at && ` · ritrovo ${formatEventTime(l.meet_at)}`}
-                          </span>
-                        ))}
+                        {lineupsOf(e.id).flatMap((l) => {
+                          const lg = gamesOf(l.id)
+                          const time = (g?: Game) =>
+                            formatEventTime(g?.starts_at ?? l.starts_at ?? e.starts_at)
+                          const vs = (g?: Game) => {
+                            const o = g?.opponent ?? l.opponent
+                            return o && o !== e.opponent ? ` · vs ${o}` : ''
+                          }
+
+                          // Un incontro solo: un'etichetta sola, come prima.
+                          if (lg.length <= 1) {
+                            return [
+                              <span key={l.id} className="tag info">
+                                {l.name} · {time(lg[0])}
+                                {vs(lg[0])}
+                                {l.meet_at && ` · ritrovo ${formatEventTime(l.meet_at)}`}
+                              </span>,
+                            ]
+                          }
+
+                          return [
+                            <span key={l.id} className="tag info">
+                              {l.name} · {lg.length} incontri
+                              {l.meet_at && ` · ritrovo ${formatEventTime(l.meet_at)}`}
+                            </span>,
+                            ...lg.map((g, i) => (
+                              <span key={g.id} className="tag">
+                                {i + 1}° {time(g)}
+                                {g.opponent ?? l.opponent ?? e.opponent
+                                  ? ` · vs ${g.opponent ?? l.opponent ?? e.opponent}`
+                                  : ''}
+                              </span>
+                            )),
+                          ]
+                        })}
                       </p>
                     )}
 

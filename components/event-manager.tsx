@@ -18,6 +18,7 @@ import {
 } from '@/lib/format'
 import type { Event, Team } from '@/lib/types'
 import { Busy } from '@/components/spinner'
+import { GamesDraft } from '@/components/games-draft'
 
 const WEEKDAYS = [
   [1, 'Lun'],
@@ -45,6 +46,8 @@ export function EventManager({
   const [team, setTeam] = useState<string>('all')
   // Serve a mostrare avversario e ritrovo solo quando si crea una partita.
   const [newType, setNewType] = useState<'training' | 'match'>('training')
+  // Partita singola o piu' incontri della stessa squadra (triangolare).
+  const [matchFormat, setMatchFormat] = useState<'single' | 'multi'>('single')
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -190,9 +193,24 @@ export function EventManager({
                 {newType === 'match' && (
                   <>
                     <label className="field">
-                      <span>Squadra avversaria</span>
-                      <input name="opponent" placeholder="es. Rugby Monza" />
+                      <span>Formato</span>
+                      <select
+                        name="match_format"
+                        value={matchFormat}
+                        onChange={(e) =>
+                          setMatchFormat(e.target.value as 'single' | 'multi')
+                        }
+                      >
+                        <option value="single">Partita singola</option>
+                        <option value="multi">Più incontri (triangolare)</option>
+                      </select>
                     </label>
+                    {matchFormat === 'single' && (
+                      <label className="field">
+                        <span>Squadra avversaria</span>
+                        <input name="opponent" placeholder="es. Rugby Monza" />
+                      </label>
+                    )}
                     <label className="field">
                       <span>Ora di ritrovo</span>
                       <input name="meet_time" type="time" />
@@ -207,6 +225,23 @@ export function EventManager({
                   </>
                 )}
               </div>
+
+              {newType === 'match' && matchFormat === 'multi' && (
+                <fieldset className="mt-5">
+                  <legend className="mini mb-2">
+                    Incontri · avversario e orario di ciascuno
+                  </legend>
+                  <GamesDraft initial={2} />
+                </fieldset>
+              )}
+
+              {newType === 'match' && (
+                <p className="mt-3 text-sm" style={{ color: 'var(--color-faint)' }}>
+                  La partita nasce con una formazione e tutta la rosa della squadra
+                  convocata: risultato e marcature si segnano dalla sua pagina,
+                  incontro per incontro.
+                </p>
+              )}
 
               <button type="submit" className="btn btn-primary mt-5" disabled={isPending}>
                 Aggiungi in calendario

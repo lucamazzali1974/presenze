@@ -21,11 +21,13 @@ export function toneFor(pct: number | null | undefined): Tone | undefined {
   return 'bad'
 }
 
+export type Serie = 1 | 2 | 3 | 4
+
 export type BarLine = {
   pct: number
   /** Il numero da scrivere a fine riga: e' il dato, non un di piu'. */
   value: string
-  serie?: 1 | 2
+  serie?: Serie
   tone?: Tone
   title: string
 }
@@ -67,7 +69,7 @@ export function BarRow({
   )
 }
 
-export function Legend({ items }: { items: [1 | 2, string][] }) {
+export function Legend({ items }: { items: [Serie, string][] }) {
   return (
     <div className="legend">
       {items.map(([serie, label]) => (
@@ -76,6 +78,60 @@ export function Legend({ items }: { items: [1 | 2, string][] }) {
           {label}
         </span>
       ))}
+    </div>
+  )
+}
+
+/**
+ * Una barra impilata: un soggetto, piu' pezzi affiancati (es. i punti di
+ * un giocatore divisi per mete, trasformazioni, piazzati e drop). La
+ * scala e' comune a tutte le righe del grafico: la passa chi lo disegna,
+ * di solito il totale del primo. Sotto, se c'e', la riga col dettaglio.
+ */
+export function StackRow({
+  label,
+  segments,
+  scale,
+  value,
+  sub,
+  title,
+}: {
+  label: React.ReactNode
+  segments: { serie: Serie; value: number; title: string }[]
+  scale: number
+  value: string
+  sub?: React.ReactNode
+  title: string
+}) {
+  const shown = segments.filter((s) => s.value > 0)
+
+  return (
+    <div className="bar-group">
+      <div className="bar-line">
+        <span className="bar-name">{label}</span>
+
+        <span className="bar-track stack" title={title}>
+          {scale > 0 &&
+            shown.map((s, i) => (
+              <span
+                key={i}
+                className="bar-fill"
+                data-serie={s.serie}
+                title={s.title}
+                style={{ width: `${Math.min(100, (100 * s.value) / scale)}%` }}
+              />
+            ))}
+        </span>
+
+        <span className="bar-value">{value}</span>
+      </div>
+
+      {sub && (
+        <div className="bar-sub">
+          <span />
+          <span>{sub}</span>
+        </div>
+      )}
     </div>
   )
 }

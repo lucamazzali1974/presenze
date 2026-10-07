@@ -639,6 +639,7 @@ supabase/migration-010-ruoli.sql       ruoli custom e permessi per sezione
 supabase/migration-011-formazioni.sql  formazioni di partita, risultato e marcature
 supabase/migration-012-non-convocato.sql  flag non convocato, assenza che non conta
 supabase/migration-013-giorni-previsti.sql  giorni previsti per atleta, affluenza per evento
+supabase/migration-014-incontri.sql    incontri dentro la formazione (triangolare), marcature per incontro
 ```
 
 ## Requisiti

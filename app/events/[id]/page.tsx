@@ -9,6 +9,7 @@ import { formatEventDate } from '@/lib/format'
 import type {
   Athlete,
   Event,
+  Game,
   Lineup,
   LineupMember,
   Score,
@@ -45,6 +46,7 @@ export default async function EventPage({
     { data: members },
     { data: lineupsData },
     { data: lineupMembers },
+    { data: gamesData },
   ] = await Promise.all([
     supabase
       .from('athletes')
@@ -68,19 +70,23 @@ export default async function EventPage({
     event.type === 'match'
       ? supabase.from('lineup_members').select('*').eq('event_id', id)
       : Promise.resolve({ data: null }),
+    event.type === 'match'
+      ? supabase.from('games').select('*').eq('event_id', id).order('sort')
+      : Promise.resolve({ data: null }),
   ])
 
   const lineups = (lineupsData ?? []) as Lineup[]
-  const lineupIds = lineups.map((l) => l.id)
+  const games = (gamesData ?? []) as Game[]
+  const gameIds = games.map((g) => g.id)
 
-  // Le marcature aspettano di sapere quali formazioni esistono: un giro
+  // Le marcature aspettano di sapere quali incontri esistono: un giro
   // in piu', ma solo sulle partite che ne hanno.
   const { data: scoreRows } =
-    lineupIds.length > 0
+    gameIds.length > 0
       ? await supabase
           .from('scores')
-          .select('lineup_id, athlete_id, kind, qty')
-          .in('lineup_id', lineupIds)
+          .select('game_id, lineup_id, athlete_id, kind, qty')
+          .in('game_id', gameIds)
       : { data: null }
 
   // La rosa della squadra dell'evento. Senza squadra, tutti.
@@ -107,7 +113,12 @@ export default async function EventPage({
     memberIds: memberRows
       .filter((m) => m.lineup_id === lineup.id)
       .map((m) => m.athlete_id),
-    scores: ((scoreRows ?? []) as Score[]).filter((s) => s.lineup_id === lineup.id),
+    games: games
+      .filter((g) => g.lineup_id === lineup.id)
+      .map((game) => ({
+        game,
+        scores: ((scoreRows ?? []) as Score[]).filter((s) => s.game_id === game.id),
+      })),
   }))
 
   const teamName = event.team_id

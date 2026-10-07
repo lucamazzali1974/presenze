@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/server'
 import { byType, forTeam, sumStats } from '@/lib/stats'
 import type { MatchScorer, MatchStatsData } from '@/components/match-stats'
 import {
+  SCORE_FIELD,
   SCORE_POINTS,
   type Athlete,
   type AttendanceStatRow,
@@ -60,7 +61,8 @@ export default async function StatsPage({
 
   const allAttendance = (attendanceData ?? []) as EventAttendance[]
 
-  // Le partite a referto: una riga per formazione giocata.
+  // Le partite a referto: una riga per incontro giocato (il triangolare
+  // ne ha piu' d'uno per la stessa formazione).
   const { data: resultsData } = await supabase
     .from('match_results')
     .select('*')
@@ -68,15 +70,23 @@ export default async function StatsPage({
 
   const allResults = (resultsData ?? []) as MatchResult[]
 
-  // Le marcature di quelle formazioni, per la classifica e per lo storico.
-  const lineupIds = allResults.map((r) => r.lineup_id)
-  const { data: scoreData } =
-    lineupIds.length > 0
-      ? await supabase
-          .from('scores')
-          .select('lineup_id, athlete_id, kind, qty')
-          .in('lineup_id', lineupIds)
-      : { data: null }
+  // Marcature e convocati di quegli incontri: classifica, schede, storico.
+  const gameIds = allResults.map((r) => r.game_id)
+  const lineupIds = [...new Set(allResults.map((r) => r.lineup_id))]
+
+  const [{ data: scoreData }, { data: calledData }] =
+    gameIds.length > 0
+      ? await Promise.all([
+          supabase
+            .from('scores')
+            .select('game_id, lineup_id, athlete_id, kind, qty')
+            .in('game_id', gameIds),
+          supabase
+            .from('lineup_members')
+            .select('lineup_id, athlete_id')
+            .in('lineup_id', lineupIds),
+        ])
+      : [{ data: null }, { data: null }]
 
   const error =
     statsRes.error?.message ??
@@ -164,12 +174,12 @@ export default async function StatsPage({
     ? allAttendance.filter((e) => e.team_id === team || e.team_id === null)
     : allAttendance
 
-  const visibleLineups = new Set(results.map((r) => r.lineup_id))
+  const visibleGames = new Set(results.map((r) => r.game_id))
   const athleteById = new Map(athletes.map((a) => [a.id, a]))
 
-  // Da contatori sparsi a una riga per atleta, e a una per formazione.
+  // Da contatori sparsi a una riga per atleta, e a una per incontro.
   const perAthlete: Record<string, MatchScorer> = {}
-  const byLineup: Record<string, Record<string, MatchScorer>> = {}
+  const byGame: Record<string, Record<string, MatchScorer>> = {}
 
   function blank(athleteId: string): MatchScorer {
     const a = athleteById.get(athleteId)
@@ -181,18 +191,26 @@ export default async function StatsPage({
       penalties: 0,
       drops: 0,
       points: 0,
+      games: 0,
+      scoredIn: 0,
     }
   }
 
-  const FIELD = {
-    try: 'tries',
-    conversion: 'conversions',
-    penalty: 'penalties',
-    drop: 'drops',
-  } as const
+  // Gli incontri giocati da ognuno: quelli della formazione in cui era.
+  const gamesPerLineup = new Map<string, number>()
+  for (const r of results) {
+    gamesPerLineup.set(r.lineup_id, (gamesPerLineup.get(r.lineup_id) ?? 0) + 1)
+  }
+  const gamesPlayed: Record<string, number> = {}
+  for (const m of (calledData ?? []) as { lineup_id: string; athlete_id: string }[]) {
+    const n = gamesPerLineup.get(m.lineup_id) ?? 0
+    if (n > 0) gamesPlayed[m.athlete_id] = (gamesPlayed[m.athlete_id] ?? 0) + n
+  }
+
+  const scoredGames = new Map<string, Set<string>>()
 
   for (const s of (scoreData ?? []) as Score[]) {
-    if (!visibleLineups.has(s.lineup_id) || s.qty <= 0) continue
+    if (!visibleGames.has(s.game_id) || s.qty <= 0) continue
     // Qui vale la stessa regola delle percentuali: il giocatore vede i
     // propri numeri, non quelli dei compagni. Il tabellino completo di
     // una partita resta sulla pagina della partita.
@@ -201,13 +219,22 @@ export default async function StatsPage({
     const points = s.qty * SCORE_POINTS[s.kind]
 
     const total = (perAthlete[s.athlete_id] ??= blank(s.athlete_id))
-    total[FIELD[s.kind]] += s.qty
+    total[SCORE_FIELD[s.kind]] += s.qty
     total.points += points
 
-    const lineup = (byLineup[s.lineup_id] ??= {})
-    const row = (lineup[s.athlete_id] ??= blank(s.athlete_id))
-    row[FIELD[s.kind]] += s.qty
+    const set = scoredGames.get(s.athlete_id) ?? new Set<string>()
+    set.add(s.game_id)
+    scoredGames.set(s.athlete_id, set)
+
+    const game = (byGame[s.game_id] ??= {})
+    const row = (game[s.athlete_id] ??= blank(s.athlete_id))
+    row[SCORE_FIELD[s.kind]] += s.qty
     row.points += points
+  }
+
+  for (const [id, row] of Object.entries(perAthlete)) {
+    row.games = gamesPlayed[id] ?? 0
+    row.scoredIn = scoredGames.get(id)?.size ?? 0
   }
 
   const matches: MatchStatsData = {
@@ -215,13 +242,14 @@ export default async function StatsPage({
     scorers: Object.values(perAthlete).sort(
       (a, b) => b.points - a.points || b.tries - a.tries
     ),
-    byLineup: Object.fromEntries(
-      Object.entries(byLineup).map(([id, map]) => [
+    byGame: Object.fromEntries(
+      Object.entries(byGame).map(([id, map]) => [
         id,
         Object.values(map).sort((a, b) => b.points - a.points),
       ])
     ),
     perAthlete,
+    gamesPlayed,
   }
 
   return (
