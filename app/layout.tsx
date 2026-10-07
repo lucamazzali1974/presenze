@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Figtree } from 'next/font/google'
+import localFont from 'next/font/local'
 import { InstallPrompt } from '@/components/install-prompt'
 import { OfflineBanner } from '@/components/offline-banner'
 import { AutoRefresh } from '@/components/auto-refresh'
@@ -7,9 +7,13 @@ import './globals.css'
 
 // TT Fors (il font di seocheck.therope.it) e' su licenza e non e'
 // ridistribuibile: Figtree e' la geometrica libera piu' vicina.
-const figtree = Figtree({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
+// Sta nel repo (variabile, sottoinsieme latin, licenza OFL in
+// app/fonts) invece di arrivare da next/font/google: cosi' la build non
+// dipende da Google Fonts, che a ottobre 2026 l'ha fatta fallire.
+const figtree = localFont({
+  src: './fonts/figtree-latin-wght-normal.woff2',
+  weight: '300 900',
+  style: 'normal',
   variable: '--font-figtree',
   display: 'swap',
 })
