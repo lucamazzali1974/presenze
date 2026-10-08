@@ -8,7 +8,7 @@ import type { Archive } from '@/lib/types'
 export const dynamic = 'force-dynamic'
 
 export default async function ArchivePage() {
-  const { perms } = await requireSection('archivio')
+  const { profile, perms } = await requireSection('archivio')
   const supabase = await createClient()
 
   const { data } = await supabase
@@ -21,7 +21,8 @@ export default async function ArchivePage() {
       <Nav perms={perms} />
       <ArchiveList
         archives={(data ?? []) as Archive[]}
-        canEdit={canEdit(perms, 'archivio')}
+        // Gli archivi tagliano gli eventi di tutte le squadre: li gestisce l'admin.
+        canEdit={profile.role === 'admin' && canEdit(perms, 'archivio')}
       />
     </>
   )

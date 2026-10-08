@@ -261,7 +261,7 @@ export default async function StatsPage({
         teams={shownTeams}
         selectedTeam={team}
         loadError={error}
-        canArchive={canEdit(perms, 'archivio')}
+        canArchive={profile.role === 'admin' && canEdit(perms, 'archivio')}
         selfOnly={!staff}
         matches={matches}
         events={attendance}

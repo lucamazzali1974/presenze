@@ -47,6 +47,40 @@ async function readRoleId(
   return { id: role.id }
 }
 
+/**
+ * Le squadre seguite da un membro dello staff. Le assegna solo l'admin
+ * (lo impone anche la RLS su staff_teams): chi ha "Utenti: modifica" non
+ * deve potersi aprire da solo le squadre degli altri. Il form le manda
+ * solo quando le mostra (campo staff_teams_present), cosi' un salvataggio
+ * da un form senza caselle non le azzera.
+ */
+async function saveStaffTeams(profileId: string, formData: FormData): Promise<Result> {
+  if (!formData.has('staff_teams_present')) return { ok: true }
+
+  const me = await requireProfile()
+  if (me.role !== 'admin') {
+    return { error: 'Solo un amministratore assegna le squadre allo staff.' }
+  }
+
+  const teamIds = [...new Set(formData.getAll('staff_team_ids').map(String).filter(Boolean))]
+  const supabase = await createClient()
+
+  const { error: delError } = await supabase
+    .from('staff_teams')
+    .delete()
+    .eq('profile_id', profileId)
+  if (delError) return { error: delError.message }
+
+  if (teamIds.length > 0) {
+    const { error } = await supabase
+      .from('staff_teams')
+      .insert(teamIds.map((team_id) => ({ profile_id: profileId, team_id })))
+    if (error) return { error: error.message }
+  }
+
+  return { ok: true }
+}
+
 /** Crea un utente gia' attivo, senza passare dalla registrazione. */
 export async function createUser(formData: FormData): Promise<Result> {
   const denied = await guard('utenti')
@@ -99,6 +133,9 @@ export async function createUser(formData: FormData): Promise<Result> {
 
   if (profileError) return { error: profileError.message }
 
+  const teams = await saveStaffTeams(data.user.id, formData)
+  if (teams.error) return teams
+
   refresh()
   return { ok: true }
 }
@@ -143,6 +180,9 @@ export async function updateUser(id: string, formData: FormData): Promise<Result
   if (!data || data.length === 0) {
     return { error: 'Nessuna modifica salvata: permessi insufficienti.' }
   }
+
+  const teams = await saveStaffTeams(id, formData)
+  if (teams.error) return teams
 
   refresh()
   return { ok: true }

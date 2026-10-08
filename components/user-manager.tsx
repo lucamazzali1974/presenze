@@ -43,6 +43,7 @@ export function UserManager({
   teams,
   roles,
   teamIdsOf = {},
+  staffTeamIdsOf = {},
   meId,
   isAdmin,
   canEdit,
@@ -55,6 +56,8 @@ export function UserManager({
   roles: Role[]
   /** Le squadre di ogni account, via la sua scheda atleta. */
   teamIdsOf?: Record<string, string[]>
+  /** Le squadre che segue ogni membro dello staff. */
+  staffTeamIdsOf?: Record<string, string[]>
   meId: string
   isAdmin: boolean
   /** 'Utenti' in modifica: senza, la pagina e' un elenco e basta. */
@@ -113,9 +116,9 @@ export function UserManager({
     : users
 
   /*
-   * Lo staff non appartiene a una squadra: allenatori e admin lavorano
-   * su tutta la societa'. Quindi una sezione "Staff" a parte, poi una
-   * per squadra con i suoi atleti, e in fondo chi non e' assegnato.
+   * Lo staff ha una sezione a parte (ogni scheda dice quali squadre
+   * segue: vede solo quelle), poi una sezione per squadra con i suoi
+   * atleti, e in fondo chi non e' assegnato. L'admin vede tutto.
    */
   const staff = matching.filter((u) => u.role !== 'athlete')
   const players = matching.filter((u) => u.role === 'athlete')
@@ -146,6 +149,9 @@ export function UserManager({
     canManageAccounts,
     athletes,
     athleteOf,
+    teams,
+    staffTeamIdsOf,
+    isAdmin,
     isPending,
     editing,
     setEditing,
@@ -216,6 +222,10 @@ export function UserManager({
               </select>
             </label>
           </div>
+
+          {isAdmin && teams.length > 0 && (
+            <TeamPicker teams={teams} selected={[]} hint="Vale solo per lo staff: un allenatore vede solo le squadre spuntate. Admin e giocatori la ignorano." />
+          )}
 
           <p className="mt-4 text-sm" style={{ color: 'var(--color-faint)' }}>
             L’accesso nasce già attivo. Comunica tu la password: l’app non manda
@@ -332,6 +342,9 @@ type RowProps = {
   canManageAccounts: boolean
   athletes: Athlete[]
   athleteOf: Map<string, Athlete>
+  teams: Team[]
+  staffTeamIdsOf: Record<string, string[]>
+  isAdmin: boolean
   isPending: boolean
   editing: string | null
   setEditing: (id: string | null) => void
@@ -349,6 +362,9 @@ function UserRow({
   canManageAccounts,
   athletes,
   athleteOf,
+  teams,
+  staffTeamIdsOf,
+  isAdmin,
   isPending,
   editing,
   setEditing,
@@ -356,6 +372,10 @@ function UserRow({
   run,
   startTransition,
 }: RowProps) {
+  const isStaffUser = u.role === 'user'
+  const followed = staffTeamIdsOf[u.id] ?? []
+  const teamName = new Map(teams.map((t) => [t.id, t.name]))
+
   return (
     <li className="row">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -377,6 +397,25 @@ function UserRow({
           <span className={STATUS_TAG[u.status]}>{STATUS_LABEL[u.status]}</span>
         </span>
       </div>
+
+      {/* Le squadre che segue: e' tutto quello che vede. */}
+      {isStaffUser && (
+        <p className="mt-2 flex flex-wrap gap-2">
+          {followed.length === 0 ? (
+            <span className="tag warn">Nessuna squadra · vede solo gli eventi di tutta la società</span>
+          ) : (
+            followed
+              .map((id) => teamName.get(id))
+              .filter(Boolean)
+              .sort((a, b) => a!.localeCompare(b!, 'it'))
+              .map((name) => (
+                <span key={name} className="tag info">
+                  {name}
+                </span>
+              ))
+          )}
+        </p>
+      )}
 
       <p className="mt-1 text-sm" style={{ color: 'var(--color-muted)' }}>
         {u.email} · dal {formatShort(u.created_at)}
@@ -435,6 +474,14 @@ function UserRow({
               </select>
             </label>
           </div>
+
+          {isAdmin && isStaffUser && (
+            <TeamPicker
+              teams={teams}
+              selected={followed}
+              hint="Vede appello, calendario, atleti e statistiche solo di queste squadre, più gli eventi di tutta la società."
+            />
+          )}
 
           <div className="row-actions">
             <button type="submit" className="btn btn-sm btn-primary" disabled={isPending}>
@@ -570,5 +617,56 @@ function AthleteLink({
         </p>
       )}
     </div>
+  )
+}
+
+/**
+ * Le squadre seguite da un membro dello staff: caselle a pillola, come i
+ * convocati. Il campo nascosto dice al server che le caselle c'erano, cosi'
+ * "nessuna spuntata" si distingue da "form senza caselle".
+ */
+function TeamPicker({
+  teams,
+  selected,
+  hint,
+}: {
+  teams: Team[]
+  selected: string[]
+  hint: string
+}) {
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(selected))
+
+  return (
+    <fieldset className="mt-4">
+      <legend className="mini mb-2">Squadre seguite</legend>
+      <input type="hidden" name="staff_teams_present" value="1" />
+
+      <div className="flex flex-wrap gap-2">
+        {teams.map((t) => (
+          <label key={t.id} className="day" style={{ width: 'auto', padding: '0 14px' }}>
+            <input
+              type="checkbox"
+              className="sr-only"
+              name="staff_team_ids"
+              value={t.id}
+              checked={picked.has(t.id)}
+              onChange={() =>
+                setPicked((prev) => {
+                  const next = new Set(prev)
+                  next.has(t.id) ? next.delete(t.id) : next.add(t.id)
+                  return next
+                })
+              }
+            />
+            {t.name}
+            {!t.active && ' (non attiva)'}
+          </label>
+        ))}
+      </div>
+
+      <p className="mt-2 text-sm" style={{ color: 'var(--color-faint)' }}>
+        {hint}
+      </p>
+    </fieldset>
   )
 }

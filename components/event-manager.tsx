@@ -34,10 +34,16 @@ export function EventManager({
   upcoming,
   past,
   teams,
+  isAdmin = false,
 }: {
   upcoming: Event[]
   past: Event[]
   teams: Team[]
+  /**
+   * Gli eventi di tutta la societa' li vede chiunque: li crea solo
+   * l'admin. Lo staff sceglie fra le sue squadre (la RLS lo impone).
+   */
+  isAdmin?: boolean
 }) {
   const [showForm, setShowForm] = useState(false)
   const [mode, setMode] = useState<'single' | 'recurring'>('single')
@@ -169,7 +175,7 @@ export function EventManager({
                 <label className="field">
                   <span>Squadra</span>
                   <select name="team_id" defaultValue="">
-                    <option value="">Tutta la societ&agrave;</option>
+                    {isAdmin && <option value="">Tutta la societ&agrave;</option>}
                     {activeTeams.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.name}
@@ -264,7 +270,7 @@ export function EventManager({
                 <label className="field">
                   <span>Squadra</span>
                   <select name="team_id" defaultValue="">
-                    <option value="">Tutta la societ&agrave;</option>
+                    {isAdmin && <option value="">Tutta la societ&agrave;</option>}
                     {activeTeams.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.name}

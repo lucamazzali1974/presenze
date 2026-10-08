@@ -66,6 +66,16 @@ export type Team = {
   active: boolean
 }
 
+/**
+ * Le squadre che un membro dello staff segue: vede solo quelle (piu' gli
+ * eventi di tutta la societa'). L'admin vede sempre tutto e non ne ha
+ * bisogno. Le assegna solo l'admin.
+ */
+export type StaffTeam = {
+  profile_id: string
+  team_id: string
+}
+
 /** Un atleta puo' stare in piu' squadre: l'appartenenza e' una tabella ponte. */
 export type TeamMember = {
   team_id: string

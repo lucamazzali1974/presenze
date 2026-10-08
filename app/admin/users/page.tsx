@@ -3,7 +3,7 @@ import { requireSection } from '@/lib/auth'
 import { canEdit } from '@/lib/permissions'
 import { createClient } from '@/utils/supabase/server'
 import { hasAdminKey } from '@/utils/supabase/admin'
-import type { Athlete, Profile, Role, Team, TeamMember } from '@/lib/types'
+import type { Athlete, Profile, Role, StaffTeam, Team, TeamMember } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,8 +11,14 @@ export default async function AdminUsersPage() {
   const { profile: me, perms } = await requireSection('utenti')
   const supabase = await createClient()
 
-  const [{ data }, { data: athletes }, { data: teams }, { data: members }, { data: roles }] =
-    await Promise.all([
+  const [
+    { data },
+    { data: athletes },
+    { data: teams },
+    { data: members },
+    { data: roles },
+    { data: staffTeams },
+  ] = await Promise.all([
       supabase
         .from('profiles')
         .select('*')
@@ -27,7 +33,14 @@ export default async function AdminUsersPage() {
       supabase.from('teams').select('*').order('name', { ascending: true }),
       supabase.from('team_members').select('*'),
       supabase.from('roles').select('*').order('sort').order('name'),
+      supabase.from('staff_teams').select('profile_id, team_id'),
     ])
+
+  // Le squadre che segue ogni membro dello staff.
+  const staffTeamIdsOf: Record<string, string[]> = {}
+  for (const st of (staffTeams ?? []) as StaffTeam[]) {
+    staffTeamIdsOf[st.profile_id] = [...(staffTeamIdsOf[st.profile_id] ?? []), st.team_id]
+  }
 
   /*
    * Le squadre di ogni account, passando dalla sua scheda atleta: i
@@ -50,6 +63,7 @@ export default async function AdminUsersPage() {
       teams={(teams ?? []) as Team[]}
       roles={(roles ?? []) as Role[]}
       teamIdsOf={teamIdsOf}
+      staffTeamIdsOf={staffTeamIdsOf}
       meId={me.id}
       isAdmin={me.role === 'admin'}
       canEdit={canEdit(perms, 'utenti')}

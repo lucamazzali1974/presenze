@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 export default async function AdminEventsPage() {
   // La pagina di gestione vuole il permesso di modifica: chi ha solo la
   // lettura resta su /calendario.
-  await requireSection('calendario', 'edit')
+  const { profile } = await requireSection('calendario', 'edit')
   const supabase = await createClient()
   const now = new Date().toISOString()
 
@@ -35,6 +35,7 @@ export default async function AdminEventsPage() {
       upcoming={(upcoming ?? []) as Event[]}
       past={(past ?? []) as Event[]}
       teams={(teams ?? []) as Team[]}
+      isAdmin={profile.role === 'admin'}
     />
   )
 }
