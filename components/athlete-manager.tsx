@@ -26,6 +26,7 @@ import {
   type Athlete,
   type AthleteSchedule,
   type Profile,
+  type Team,
 } from '@/lib/types'
 import { Busy } from '@/components/spinner'
 
@@ -49,6 +50,7 @@ export function AthleteManager({
   athletes,
   teamsOf = {},
   hasTeams = false,
+  teams = [],
   accountOf = {},
   schedulesOf = {},
   canCreateAccounts = false,
@@ -58,6 +60,8 @@ export function AthleteManager({
   athletes: Athlete[]
   teamsOf?: Record<string, string[]>
   hasTeams?: boolean
+  /** Le squadre attive fra cui scegliere quando si aggiunge un giocatore. */
+  teams?: Team[]
   /** I giorni previsti di ogni atleta, regola per regola. */
   schedulesOf?: Record<string, AthleteSchedule[]>
   /** L'account collegato a ogni giocatore, per chi puo' vederlo. */
@@ -142,6 +146,8 @@ export function AthleteManager({
               <input name="joined_on" type="date" defaultValue={todayInput()} required />
             </label>
           </div>
+
+          {teams.length > 0 && <NewAthleteTeams teams={teams} />}
 
           <p className="mt-4 text-sm" style={{ color: 'var(--faint)' }}>
             Gli appelli chiusi prima di questa data non entrano nelle sue
@@ -759,5 +765,42 @@ function SchedulePanel({
         </button>
       )}
     </div>
+  )
+}
+
+/**
+ * In quale squadra entra il giocatore appena creato. Si puo' sceglierne
+ * piu' d'una (U18 + prima squadra); con una squadra sola e' gia' spuntata.
+ */
+function NewAthleteTeams({ teams }: { teams: Team[] }) {
+  const [picked, setPicked] = useState<Set<string>>(
+    () => new Set(teams.length === 1 ? [teams[0].id] : [])
+  )
+
+  return (
+    <fieldset className="mt-5">
+      <legend className="mini mb-2">Squadra</legend>
+      <div className="flex flex-wrap gap-2">
+        {teams.map((t) => (
+          <label key={t.id} className="day" style={{ width: 'auto', padding: '0 14px' }}>
+            <input
+              type="checkbox"
+              className="sr-only"
+              name="team_ids"
+              value={t.id}
+              checked={picked.has(t.id)}
+              onChange={() =>
+                setPicked((prev) => {
+                  const next = new Set(prev)
+                  next.has(t.id) ? next.delete(t.id) : next.add(t.id)
+                  return next
+                })
+              }
+            />
+            {t.name}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   )
 }

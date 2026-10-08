@@ -105,6 +105,7 @@ export default async function AthletesPage() {
         athletes={visible}
         teamsOf={teamsOf}
         hasTeams={((teams ?? []) as Team[]).length > 0}
+        teams={((teams ?? []) as Team[]).filter((t) => t.active)}
         accountOf={accountOf}
         schedulesOf={schedulesOf}
         canCreateAccounts={canManageAccounts && hasAdminKey()}

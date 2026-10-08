@@ -38,14 +38,36 @@ export async function createAthlete(formData: FormData): Promise<ActionResult> {
   const joined = readJoinedOn(formData)
   if (joined.error) return { error: joined.error }
 
-  const { error } = await supabase.from('athletes').insert({
-    first_name,
-    last_name,
-    nickname: nickname || null,
-    ...(joined.value ? { joined_on: joined.value } : {}),
-  })
+  const { data, error } = await supabase
+    .from('athletes')
+    .insert({
+      first_name,
+      last_name,
+      nickname: nickname || null,
+      ...(joined.value ? { joined_on: joined.value } : {}),
+    })
+    .select('id')
 
   if (error) return { error: error.message }
+  if (!data || data.length === 0) {
+    return { error: 'Giocatore non creato: permessi insufficienti.' }
+  }
+
+  // Le squadre scelte nel form: si entra in rosa in un passaggio solo.
+  const teamIds = [...new Set(formData.getAll('team_ids').map(String).filter(Boolean))]
+  if (teamIds.length > 0) {
+    const athleteId = (data[0] as { id: string }).id
+    const { error: teamError } = await supabase
+      .from('team_members')
+      .insert(teamIds.map((team_id) => ({ team_id, athlete_id: athleteId })))
+
+    if (teamError) {
+      revalidatePath('/atleti')
+      return {
+        error: `Giocatore creato, ma non è stato possibile metterlo in squadra (${teamError.message}). Aggiungilo da Squadre.`,
+      }
+    }
+  }
 
   revalidatePath('/atleti')
   revalidatePath('/')

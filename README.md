@@ -641,6 +641,7 @@ supabase/migration-012-non-convocato.sql  flag non convocato, assenza che non co
 supabase/migration-013-giorni-previsti.sql  giorni previsti per atleta, affluenza per evento
 supabase/migration-014-incontri.sql    incontri dentro la formazione (triangolare), marcature per incontro
 supabase/migration-015-staff-squadre.sql  staff assegnato alle squadre: vede solo quelle (RLS)
+supabase/migration-016-squadra-nuovo-atleta.sql  squadra scelta gia' alla creazione del giocatore
 ```
 
 ## Requisiti
